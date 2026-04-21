@@ -1,6 +1,7 @@
 import api from './api';
 import type { ApiResponse, PagedResponse } from '@/types';
 
+// Image analysis result shape
 export interface Finding {
   region: string;
   description: string;
@@ -8,7 +9,7 @@ export interface Finding {
   confidence: number;
 }
 
-export interface AnalysisResult {
+export interface ImageAnalysisResult {
   findings: Finding[];
   impression: string;
   icd10Codes: string[];
@@ -16,16 +17,52 @@ export interface AnalysisResult {
   urgency: string;
 }
 
+// Blood report result shape
+export interface BloodReportParameter {
+  name: string;
+  value: number;
+  unit: string;
+  referenceRange: string;
+  flag: 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL_HIGH' | 'CRITICAL_LOW';
+}
+
+export interface BloodReportResult {
+  testName: string;
+  parameters: BloodReportParameter[];
+  interpretation: string;
+  flags: string[];
+}
+
+// Combined analysis result shape
+export interface DiagnosisRecommendation {
+  diagnosis: string;
+  icd10Code: string;
+  confidence: number;
+  supportingEvidence: string[];
+}
+
+export interface CombinedAnalysisResult {
+  overallAssessment: string;
+  clinicalCorrelation: string;
+  diagnoses: DiagnosisRecommendation[];
+  criticalFindings: string[];
+  recommendations: string[];
+  urgency: string;
+  confidenceScore: number;
+}
+
+export type AnalysisType = 'IMAGE_ANALYSIS' | 'BLOOD_REPORT' | 'COMBINED';
+
 export interface AnalysisResponse {
   id: string;
   patientId: string;
   medicalFileId: string;
   requestedBy: string;
-  analysisType: string;
+  analysisType: AnalysisType;
   clinicalNotes: string | null;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   urgency: string | null;
-  result: AnalysisResult | null;
+  rawResult: string | null;
   errorMessage: string | null;
   modelUsed: string | null;
   promptTokens: number | null;
@@ -39,12 +76,33 @@ export interface AnalysisResponse {
   updatedAt: string;
 }
 
+export function parseResult(a: AnalysisResponse): ImageAnalysisResult | BloodReportResult | CombinedAnalysisResult | null {
+  if (!a.rawResult) return null;
+  try {
+    return JSON.parse(a.rawResult);
+  } catch {
+    return null;
+  }
+}
+
 export const analysisService = {
-  async requestAnalysis(patientId: string, medicalFileId: string, clinicalNotes?: string): Promise<AnalysisResponse> {
+  async requestImageAnalysis(patientId: string, medicalFileId: string, clinicalNotes?: string): Promise<AnalysisResponse> {
     const res = await api.post<ApiResponse<AnalysisResponse>>('/analysis', {
-      patientId,
-      medicalFileId,
-      clinicalNotes,
+      patientId, medicalFileId, clinicalNotes,
+    });
+    return res.data.data!;
+  },
+
+  async requestBloodReport(patientId: string, medicalFileId: string, clinicalNotes?: string): Promise<AnalysisResponse> {
+    const res = await api.post<ApiResponse<AnalysisResponse>>('/analysis/blood-report', {
+      patientId, medicalFileId, clinicalNotes,
+    });
+    return res.data.data!;
+  },
+
+  async requestCombined(patientId: string, medicalFileId: string, clinicalNotes?: string): Promise<AnalysisResponse> {
+    const res = await api.post<ApiResponse<AnalysisResponse>>('/analysis/combined', {
+      patientId, medicalFileId, clinicalNotes,
     });
     return res.data.data!;
   },

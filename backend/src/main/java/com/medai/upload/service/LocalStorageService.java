@@ -3,6 +3,8 @@ package com.medai.upload.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -70,5 +72,14 @@ public class LocalStorageService implements StorageService {
     public boolean exists(String storagePath) {
         Path filePath = rootPath.resolve(storagePath).normalize();
         return Files.exists(filePath);
+    }
+
+    @Override
+    public Resource retrieveAsResource(String storagePath) {
+        Path filePath = rootPath.resolve(storagePath).normalize();
+        if (!Files.exists(filePath)) {
+            throw new RuntimeException("File not found: " + storagePath);
+        }
+        return new FileSystemResource(filePath);
     }
 }

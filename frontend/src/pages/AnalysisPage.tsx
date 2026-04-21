@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { patientService } from '@/services/patientService';
 import { fileService } from '@/services/fileService';
-import { analysisService, type AnalysisResponse } from '@/services/analysisService';
+import { analysisService, parseResult, type AnalysisResponse, type ImageAnalysisResult } from '@/services/analysisService';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -102,7 +102,7 @@ export function AnalysisPage() {
     setError('');
     setSubmitting(true);
     try {
-      const result = await analysisService.requestAnalysis(selectedPatient, selectedFile, clinicalNotes || undefined);
+      const result = await analysisService.requestImageAnalysis(selectedPatient, selectedFile, clinicalNotes || undefined);
       setPolling(result.id);
       setClinicalNotes('');
       loadAnalyses();
@@ -299,67 +299,67 @@ export function AnalysisPage() {
                         </div>
                       )}
 
-                      {a.result && (
-                        <div className="space-y-4">
-                          {/* Impression */}
-                          <div className="rounded-lg bg-primary/5 p-4">
-                            <h4 className="mb-1 text-sm font-semibold">Impression</h4>
-                            <p className="text-sm">{a.result.impression}</p>
-                          </div>
+                      {a.rawResult && (() => {
+                        const parsed = parseResult(a) as ImageAnalysisResult | null;
+                        if (!parsed) return null;
+                        return (
+                          <div className="space-y-4">
+                            <div className="rounded-lg bg-primary/5 p-4">
+                              <h4 className="mb-1 text-sm font-semibold">Impression</h4>
+                              <p className="text-sm">{parsed.impression}</p>
+                            </div>
 
-                          {/* Findings */}
-                          {a.result.findings && a.result.findings.length > 0 && (
-                            <div>
-                              <h4 className="mb-2 text-sm font-semibold">Findings</h4>
-                              <div className="space-y-2">
-                                {a.result.findings.map((f, idx) => (
-                                  <div key={idx} className="flex items-start gap-3 rounded-lg border p-3">
-                                    <span className={`mt-0.5 rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_COLORS[f.severity] || 'bg-gray-100 text-gray-700'}`}>
-                                      {f.severity}
-                                    </span>
-                                    <div className="flex-1">
-                                      <p className="text-sm font-medium">{f.region}</p>
-                                      <p className="text-sm text-muted-foreground">{f.description}</p>
+                            {parsed.findings && parsed.findings.length > 0 && (
+                              <div>
+                                <h4 className="mb-2 text-sm font-semibold">Findings</h4>
+                                <div className="space-y-2">
+                                  {parsed.findings.map((f, idx) => (
+                                    <div key={idx} className="flex items-start gap-3 rounded-lg border p-3">
+                                      <span className={`mt-0.5 rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_COLORS[f.severity] || 'bg-gray-100 text-gray-700'}`}>
+                                        {f.severity}
+                                      </span>
+                                      <div className="flex-1">
+                                        <p className="text-sm font-medium">{f.region}</p>
+                                        <p className="text-sm text-muted-foreground">{f.description}</p>
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">
+                                        {(f.confidence * 100).toFixed(0)}%
+                                      </span>
                                     </div>
-                                    <span className="text-xs text-muted-foreground">
-                                      {(f.confidence * 100).toFixed(0)}%
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {parsed.icd10Codes && parsed.icd10Codes.length > 0 && (
+                              <div>
+                                <h4 className="mb-2 text-sm font-semibold">ICD-10 Codes</h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {parsed.icd10Codes.map((code, idx) => (
+                                    <span key={idx} className="rounded-md bg-muted px-2.5 py-1 text-xs font-mono font-medium">
+                                      {code}
                                     </span>
-                                  </div>
-                                ))}
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                          {/* ICD-10 Codes */}
-                          {a.result.icd10Codes && a.result.icd10Codes.length > 0 && (
-                            <div>
-                              <h4 className="mb-2 text-sm font-semibold">ICD-10 Codes</h4>
-                              <div className="flex flex-wrap gap-2">
-                                {a.result.icd10Codes.map((code, idx) => (
-                                  <span key={idx} className="rounded-md bg-muted px-2.5 py-1 text-xs font-mono font-medium">
-                                    {code}
-                                  </span>
-                                ))}
+                            {parsed.recommendations && parsed.recommendations.length > 0 && (
+                              <div>
+                                <h4 className="mb-2 text-sm font-semibold">Recommendations</h4>
+                                <ul className="space-y-1">
+                                  {parsed.recommendations.map((rec, idx) => (
+                                    <li key={idx} className="flex items-start gap-2 text-sm">
+                                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                                      {rec}
+                                    </li>
+                                  ))}
+                                </ul>
                               </div>
-                            </div>
-                          )}
-
-                          {/* Recommendations */}
-                          {a.result.recommendations && a.result.recommendations.length > 0 && (
-                            <div>
-                              <h4 className="mb-2 text-sm font-semibold">Recommendations</h4>
-                              <ul className="space-y-1">
-                                {a.result.recommendations.map((rec, idx) => (
-                                  <li key={idx} className="flex items-start gap-2 text-sm">
-                                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                                    {rec}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </Card>

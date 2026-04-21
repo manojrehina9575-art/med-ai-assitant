@@ -61,6 +61,24 @@ public class AnalysisController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @PostMapping("/blood-report")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR', 'LAB_TECH')")
+    public ResponseEntity<ApiResponse<AnalysisResponse>> requestBloodReportAnalysis(
+            @Valid @RequestBody CreateAnalysisRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        AnalysisResponse response = analysisService.requestBloodReportAnalysis(request, principal);
+        return ResponseEntity.ok(ApiResponse.success("Blood report analysis submitted", response));
+    }
+
+    @PostMapping("/combined")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR')")
+    public ResponseEntity<ApiResponse<AnalysisResponse>> requestCombinedAnalysis(
+            @Valid @RequestBody CreateAnalysisRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        AnalysisResponse response = analysisService.requestCombinedAnalysis(request, principal);
+        return ResponseEntity.ok(ApiResponse.success("Combined analysis submitted", response));
+    }
+
     @PostMapping("/{id}/retry")
     @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR')")
     public ResponseEntity<ApiResponse<AnalysisResponse>> retryAnalysis(

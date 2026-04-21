@@ -8,6 +8,7 @@ import { PatientsPage } from '@/pages/PatientsPage';
 import { UploadPage } from '@/pages/UploadPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { AnalysisPage } from '@/pages/AnalysisPage';
+import { BloodReportPage } from '@/pages/BloodReportPage';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/patients" element={<PatientsPage />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
+        <Route path="/blood-reports" element={<BloodReportPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

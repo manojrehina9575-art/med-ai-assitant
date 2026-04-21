@@ -8,6 +8,7 @@ import {
   LogOut,
   Stethoscope,
   Brain,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
@@ -17,6 +18,7 @@ const navItems = [
   { to: '/patients', label: 'Patients', icon: Users },
   { to: '/upload', label: 'Upload Files', icon: Upload },
   { to: '/analysis', label: 'AI Analysis', icon: Brain },
+  { to: '/blood-reports', label: 'Blood Reports', icon: FileText },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

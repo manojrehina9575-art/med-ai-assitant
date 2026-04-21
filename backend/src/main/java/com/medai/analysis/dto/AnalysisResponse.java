@@ -20,7 +20,7 @@ public class AnalysisResponse {
     private String clinicalNotes;
     private String status;
     private String urgency;
-    private AnalysisResultDto result;
+    private String rawResult;
     private String errorMessage;
     private String modelUsed;
     private Integer promptTokens;

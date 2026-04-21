@@ -39,31 +39,42 @@ public class AnalysisService {
 
     @Transactional
     public AnalysisResponse requestAnalysis(CreateAnalysisRequest request, UserPrincipal principal) {
+        return createAndPublish(request, AnalysisType.IMAGE_ANALYSIS, principal);
+    }
+
+    @Transactional
+    public AnalysisResponse requestBloodReportAnalysis(CreateAnalysisRequest request, UserPrincipal principal) {
+        return createAndPublish(request, AnalysisType.BLOOD_REPORT, principal);
+    }
+
+    @Transactional
+    public AnalysisResponse requestCombinedAnalysis(CreateAnalysisRequest request, UserPrincipal principal) {
+        return createAndPublish(request, AnalysisType.COMBINED, principal);
+    }
+
+    private AnalysisResponse createAndPublish(CreateAnalysisRequest request, AnalysisType type, UserPrincipal principal) {
         UUID tenantId = principal.tenantId();
 
-        // Validate patient exists and belongs to tenant
         patientRepository.findByIdAndTenantId(request.getPatientId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient", "id", request.getPatientId().toString()));
 
-        // Validate medical file exists and belongs to tenant
         medicalFileRepository.findById(request.getMedicalFileId())
                 .filter(f -> f.getTenantId().equals(tenantId))
                 .orElseThrow(() -> new ResourceNotFoundException("MedicalFile", "id", request.getMedicalFileId().toString()));
 
-        // Check if analysis already exists for this file and is pending/processing
         var existing = analysisRequestRepository.findByTenantIdAndMedicalFileId(tenantId, request.getMedicalFileId());
         boolean hasPendingOrProcessing = existing.stream()
-                .anyMatch(a -> a.getStatus() == AnalysisStatus.PENDING || a.getStatus() == AnalysisStatus.PROCESSING);
+                .anyMatch(a -> a.getAnalysisType() == type
+                        && (a.getStatus() == AnalysisStatus.PENDING || a.getStatus() == AnalysisStatus.PROCESSING));
         if (hasPendingOrProcessing) {
-            throw new BadRequestException("An analysis is already in progress for this file");
+            throw new BadRequestException("An analysis of this type is already in progress for this file");
         }
 
-        // Create analysis request
         AnalysisRequest analysisRequest = AnalysisRequest.builder()
                 .patientId(request.getPatientId())
                 .medicalFileId(request.getMedicalFileId())
                 .requestedBy(principal.userId())
-                .analysisType(AnalysisType.IMAGE_ANALYSIS)
+                .analysisType(type)
                 .clinicalNotes(request.getClinicalNotes())
                 .status(AnalysisStatus.PENDING)
                 .retryCount(0)
@@ -72,10 +83,9 @@ public class AnalysisService {
 
         analysisRequest = analysisRequestRepository.save(analysisRequest);
 
-        log.info("Created analysis request {} for patient {} by user {}",
-                analysisRequest.getId(), request.getPatientId(), principal.userId());
+        log.info("Created {} request {} for patient {} by user {}",
+                type, analysisRequest.getId(), request.getPatientId(), principal.userId());
 
-        // Publish async event
         eventPublisher.publishEvent(new AnalysisRequestEvent(this, analysisRequest.getId(), tenantId));
 
         return toResponse(analysisRequest);
@@ -142,15 +152,6 @@ public class AnalysisService {
     }
 
     private AnalysisResponse toResponse(AnalysisRequest entity) {
-        AnalysisResultDto resultDto = null;
-        if (entity.getResult() != null) {
-            try {
-                resultDto = objectMapper.readValue(entity.getResult(), AnalysisResultDto.class);
-            } catch (Exception e) {
-                log.warn("Failed to parse analysis result JSON for request {}", entity.getId());
-            }
-        }
-
         return AnalysisResponse.builder()
                 .id(entity.getId())
                 .patientId(entity.getPatientId())
@@ -160,7 +161,7 @@ public class AnalysisService {
                 .clinicalNotes(entity.getClinicalNotes())
                 .status(entity.getStatus().name())
                 .urgency(entity.getUrgency())
-                .result(resultDto)
+                .rawResult(entity.getResult())
                 .errorMessage(entity.getErrorMessage())
                 .modelUsed(entity.getModelUsed())
                 .promptTokens(entity.getPromptTokens())
