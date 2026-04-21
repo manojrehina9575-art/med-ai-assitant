@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: true
+
+logging:
+  level:
+    com.medai: INFO
+    org.springframework.security: WARN
+
+app:
+  storage:
+    type: s3

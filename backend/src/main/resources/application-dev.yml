@@ -1,0 +1,10 @@
+spring:
+  jpa:
+    show-sql: true
+  flyway:
+    clean-disabled: false
+
+logging:
+  level:
+    com.medai: DEBUG
+    org.springframework.security: DEBUG
