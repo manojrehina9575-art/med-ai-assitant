@@ -7,6 +7,7 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { PatientsPage } from '@/pages/PatientsPage';
 import { UploadPage } from '@/pages/UploadPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { AnalysisPage } from '@/pages/AnalysisPage';
 
 export default function App() {
   return (
@@ -20,7 +21,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/patients" element={<PatientsPage />} />
         <Route path="/upload" element={<UploadPage />} />
-        <Route path="/analysis" element={<div className="text-center py-20 text-muted-foreground">AI Analysis - Coming in MVP 2</div>} />
+        <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

@@ -7,7 +7,7 @@ import {
   Settings,
   LogOut,
   Stethoscope,
-  Activity,
+  Brain,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
@@ -16,7 +16,7 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/patients', label: 'Patients', icon: Users },
   { to: '/upload', label: 'Upload Files', icon: Upload },
-  { to: '/analysis', label: 'AI Analysis', icon: Activity, disabled: true },
+  { to: '/analysis', label: 'AI Analysis', icon: Brain },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -52,17 +52,12 @@ export function Sidebar() {
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                item.disabled && 'pointer-events-none opacity-40'
+                false
               )
             }
           >
             <item.icon className="h-4 w-4" />
             {item.label}
-            {item.disabled && (
-              <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                Soon
-              </span>
-            )}
           </NavLink>
         ))}
       </nav>

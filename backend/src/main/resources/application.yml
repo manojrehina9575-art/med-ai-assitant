@@ -27,6 +27,20 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
 
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-placeholder}
+      chat:
+        options:
+          model: gpt-4o
+          temperature: 0.2
+          max-tokens: 4096
+    retry:
+      max-attempts: 3
+      backoff:
+        initial-interval: 2000
+        multiplier: 2
+
 server:
   port: ${SERVER_PORT:8080}
 
