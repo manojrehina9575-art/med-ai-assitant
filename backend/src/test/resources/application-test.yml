@@ -1,0 +1,25 @@
+spring:
+  jpa:
+    show-sql: true
+  flyway:
+    clean-disabled: false
+
+  # Spring AI — disabled during tests (no real API calls)
+  ai:
+    openai:
+      api-key: sk-test-placeholder
+      enabled: false
+
+logging:
+  level:
+    com.medai: DEBUG
+    org.testcontainers: INFO
+
+# JWT secret for tests (not used in production)
+app:
+  jwt:
+    secret: dGVzdC1qd3Qtc2VjcmV0LWZvci1tZWQtYWktYXNzaXN0YW50LXRlc3RpbmctcHVycG9zZXMtb25seQ==
+  ai:
+    rate-limit:
+      max-requests-per-minute: 100
+      max-cost-per-day-usd: 1000.0

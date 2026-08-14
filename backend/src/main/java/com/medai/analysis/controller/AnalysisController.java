@@ -6,6 +6,7 @@ import com.medai.analysis.service.AnalysisService;
 import com.medai.auth.security.UserPrincipal;
 import com.medai.common.dto.ApiResponse;
 import com.medai.common.dto.PagedResponse;
+import com.medai.config.RateLimitService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,12 +22,14 @@ import java.util.UUID;
 public class AnalysisController {
 
     private final AnalysisService analysisService;
+    private final RateLimitService rateLimitService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR')")
     public ResponseEntity<ApiResponse<AnalysisResponse>> requestAnalysis(
             @Valid @RequestBody CreateAnalysisRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
+        rateLimitService.checkRateLimit(principal.tenantId());
         AnalysisResponse response = analysisService.requestAnalysis(request, principal);
         return ResponseEntity.ok(ApiResponse.success("Analysis request submitted", response));
     }
@@ -66,6 +69,7 @@ public class AnalysisController {
     public ResponseEntity<ApiResponse<AnalysisResponse>> requestBloodReportAnalysis(
             @Valid @RequestBody CreateAnalysisRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
+        rateLimitService.checkRateLimit(principal.tenantId());
         AnalysisResponse response = analysisService.requestBloodReportAnalysis(request, principal);
         return ResponseEntity.ok(ApiResponse.success("Blood report analysis submitted", response));
     }
@@ -75,6 +79,7 @@ public class AnalysisController {
     public ResponseEntity<ApiResponse<AnalysisResponse>> requestCombinedAnalysis(
             @Valid @RequestBody CreateAnalysisRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
+        rateLimitService.checkRateLimit(principal.tenantId());
         AnalysisResponse response = analysisService.requestCombinedAnalysis(request, principal);
         return ResponseEntity.ok(ApiResponse.success("Combined analysis submitted", response));
     }
@@ -84,7 +89,9 @@ public class AnalysisController {
     public ResponseEntity<ApiResponse<AnalysisResponse>> retryAnalysis(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
+        rateLimitService.checkRateLimit(principal.tenantId());
         AnalysisResponse response = analysisService.retryAnalysis(id, principal);
         return ResponseEntity.ok(ApiResponse.success("Analysis retry submitted", response));
     }
 }
+

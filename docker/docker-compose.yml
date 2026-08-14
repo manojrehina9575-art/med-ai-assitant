@@ -1,13 +1,11 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: medai-postgres
     environment:
-      POSTGRES_DB: medai
-      POSTGRES_USER: medai
-      POSTGRES_PASSWORD: medai_secret
+      POSTGRES_DB: ${DB_NAME:-medai}
+      POSTGRES_USER: ${DB_USERNAME:-medai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-medai_secret}
     ports:
       - "5432:5432"
     volumes:
@@ -18,32 +16,20 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: medai-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   backend:
     build:
       context: ../backend
       dockerfile: ../docker/Dockerfile.backend
     container_name: medai-backend
+    env_file:
+      - ../.env
     environment:
       SPRING_PROFILES_ACTIVE: dev
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: medai
-      DB_USERNAME: medai
-      DB_PASSWORD: medai_secret
-      JWT_SECRET: c2VjdXJlLWp3dC1zZWNyZXQtZm9yLW1lZC1haS1hc3Npc3RhbnQtYXBwbGljYXRpb24tMjAyNA==
+      DB_NAME: ${DB_NAME:-medai}
+      DB_USERNAME: ${DB_USERNAME:-medai}
+      DB_PASSWORD: ${DB_PASSWORD:-medai_secret}
       STORAGE_TYPE: local
       STORAGE_LOCAL_PATH: /app/uploads
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
@@ -67,5 +53,4 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   uploads_data:
