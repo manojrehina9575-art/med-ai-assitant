@@ -1,6 +1,8 @@
 package com.medai.auth.service;
 
 import com.medai.auth.dto.*;
+import com.medai.auth.entity.RefreshToken;
+import com.medai.auth.repository.RefreshTokenRepository;
 import com.medai.auth.security.JwtService;
 import com.medai.common.exception.BadRequestException;
 import com.medai.common.exception.UnauthorizedException;
@@ -27,6 +29,7 @@ public class AuthService {
 
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
@@ -133,33 +136,101 @@ public class AuthService {
         return buildAuthResponse(user, tenant);
     }
 
-    public AuthResponse refreshToken(String refreshToken) {
-        if (!jwtService.validateToken(refreshToken)) {
-            throw new UnauthorizedException("Invalid refresh token");
+    /**
+     * Refresh token rotation: the old refresh token is revoked and replaced
+     * with a new one. If a revoked token is presented (replay attack),
+     * all tokens for the user are revoked as a security measure.
+     */
+    @Transactional
+    public AuthResponse refreshToken(String rawRefreshToken) {
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            throw new UnauthorizedException("Refresh token is required");
         }
 
-        UUID userId = jwtService.extractUserId(refreshToken);
-        UUID tenantId = jwtService.extractTenantId(refreshToken);
+        String tokenHash = jwtService.hashToken(rawRefreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
-        User user = userRepository.findByIdAndTenantId(userId, tenantId)
+        // If the token was already revoked, this is a replay attack — revoke all tokens for this user
+        if (storedToken.getRevoked()) {
+            log.warn("Refresh token replay detected for user {}. Revoking all tokens.", storedToken.getUserId());
+            refreshTokenRepository.revokeAllByUserId(storedToken.getUserId());
+            throw new UnauthorizedException("Refresh token has been revoked. Please login again.");
+        }
+
+        if (storedToken.isExpired()) {
+            throw new UnauthorizedException("Refresh token has expired. Please login again.");
+        }
+
+        User user = userRepository.findByIdAndTenantId(storedToken.getUserId(), storedToken.getTenantId())
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
 
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantRepository.findById(storedToken.getTenantId())
                 .orElseThrow(() -> new UnauthorizedException("Tenant not found"));
 
-        TenantContext.setCurrentTenantId(tenantId);
+        TenantContext.setCurrentTenantId(tenant.getId());
 
-        return buildAuthResponse(user, tenant);
-    }
+        // Revoke the old token
+        storedToken.setRevoked(true);
 
-    private AuthResponse buildAuthResponse(User user, Tenant tenant) {
+        // Generate new token pair
         String accessToken = jwtService.generateAccessToken(
                 user.getId(), tenant.getId(), user.getEmail(), user.getRole().name());
-        String refreshToken = jwtService.generateRefreshToken(user.getId(), tenant.getId());
+
+        String newRawRefreshToken = jwtService.generateRefreshTokenValue();
+        String newTokenHash = jwtService.hashToken(newRawRefreshToken);
+
+        RefreshToken newRefreshToken = RefreshToken.builder()
+                .userId(user.getId())
+                .tenantId(tenant.getId())
+                .tokenHash(newTokenHash)
+                .expiresAt(Instant.now().plusMillis(jwtService.getRefreshExpirationMs()))
+                .build();
+        newRefreshToken = refreshTokenRepository.save(newRefreshToken);
+
+        // Link old token to new one for audit trail
+        storedToken.setReplacedBy(newRefreshToken.getId());
+        refreshTokenRepository.save(storedToken);
+
+        log.info("Refresh token rotated for user: {} (tenant: {})", user.getEmail(), tenant.getName());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
+                .refreshToken(newRawRefreshToken)
+                .tokenType("Bearer")
+                .expiresIn(jwtService.getExpirationMs() / 1000)
+                .userId(user.getId())
+                .tenantId(tenant.getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .tenantName(tenant.getName())
+                .build();
+    }
+
+    /**
+     * Builds the auth response with a new access token (JWT) and
+     * a new opaque refresh token stored in the database.
+     */
+    private AuthResponse buildAuthResponse(User user, Tenant tenant) {
+        String accessToken = jwtService.generateAccessToken(
+                user.getId(), tenant.getId(), user.getEmail(), user.getRole().name());
+
+        // Generate and store opaque refresh token
+        String rawRefreshToken = jwtService.generateRefreshTokenValue();
+        String tokenHash = jwtService.hashToken(rawRefreshToken);
+
+        RefreshToken refreshToken = RefreshToken.builder()
+                .userId(user.getId())
+                .tenantId(tenant.getId())
+                .tokenHash(tokenHash)
+                .expiresAt(Instant.now().plusMillis(jwtService.getRefreshExpirationMs()))
+                .build();
+        refreshTokenRepository.save(refreshToken);
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(rawRefreshToken)
                 .tokenType("Bearer")
                 .expiresIn(jwtService.getExpirationMs() / 1000)
                 .userId(user.getId())
@@ -171,3 +242,4 @@ public class AuthService {
                 .build();
     }
 }
+
