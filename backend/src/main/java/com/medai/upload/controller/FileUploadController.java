@@ -62,6 +62,21 @@ public class FileUploadController {
                 .body(new InputStreamResource(inputStream));
     }
 
+    @GetMapping("/{fileId}/view")
+    public ResponseEntity<InputStreamResource> viewFile(
+            @PathVariable UUID patientId,
+            @PathVariable UUID fileId) {
+        MedicalFile medicalFile = fileUploadService.getFile(fileId);
+        InputStream inputStream = storageService.retrieve(medicalFile.getStoragePath());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + medicalFile.getOriginalFileName() + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                .contentType(MediaType.parseMediaType(medicalFile.getMimeType()))
+                .contentLength(medicalFile.getFileSizeBytes())
+                .body(new InputStreamResource(inputStream));
+    }
+
     @DeleteMapping("/{fileId}")
     @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR')")
     public ResponseEntity<ApiResponse<Void>> deleteFile(

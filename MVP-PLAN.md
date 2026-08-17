@@ -11,34 +11,34 @@ Each MVP is self-contained, testable, and deployable independently.
 
 ### Backend (Spring Boot 3.x + Java 21)
 - [x] Project scaffolding with Spring Boot 3.x, Java 21, Maven
-- [ ] Multi-tenant database schema (PostgreSQL)
+- [x] Multi-tenant database schema (PostgreSQL)
   - `tenants` table (id, name, subdomain, settings, created_at)
   - `users` table (id, tenant_id, email, password_hash, role, name)
   - `patients` table (id, tenant_id, name, dob, gender, medical_record_number)
   - `medical_files` table (id, tenant_id, patient_id, file_type, file_path, upload_status)
   - `audit_logs` table (id, tenant_id, user_id, action, entity_type, entity_id, timestamp)
-- [ ] Tenant context resolver (JWT claim → ThreadLocal TenantContext)
-- [ ] Spring Security config with JWT authentication
-- [ ] Role-based access control (HOSPITAL_ADMIN, DOCTOR, LAB_TECH, PATIENT)
-- [ ] File upload REST API (images: DICOM/JPEG/PNG, documents: PDF)
-- [ ] Tenant-scoped file storage (local dev → S3 prod) at `/{tenantId}/patients/{patientId}/...`
-- [ ] Global exception handler + standard error response
-- [ ] Health check + info endpoints
-- [ ] Flyway DB migrations
-- [ ] OpenAPI/Swagger docs
+- [x] Tenant context resolver (JWT claim → ThreadLocal TenantContext)
+- [x] Spring Security config with JWT authentication
+- [x] Role-based access control (HOSPITAL_ADMIN, DOCTOR, LAB_TECH, PATIENT)
+- [x] File upload REST API (images: DICOM/JPEG/PNG, documents: PDF)
+- [x] Tenant-scoped file storage (local dev → S3 prod) at `/{tenantId}/patients/{patientId}/...`
+- [x] Global exception handler + standard error response
+- [x] Health check + info endpoints
+- [x] Flyway DB migrations (V1-V4 with Row-Level Security & Refresh Token Rotation)
+- [x] OpenAPI/Swagger docs
 
 ### Frontend (React 18 + TypeScript + Vite + TailwindCSS + shadcn/ui)
-- [ ] Project scaffolding
-- [ ] Auth pages (login, register hospital, forgot password)
-- [ ] Dashboard shell (sidebar, header, tenant branding)
-- [ ] File upload component with drag-and-drop
-- [ ] Patient list page (CRUD)
-- [ ] Routing with protected routes
+- [x] Project scaffolding
+- [x] Auth pages (login, register hospital, forgot password)
+- [x] Dashboard shell (sidebar, header, tenant branding)
+- [x] File upload component with drag-and-drop
+- [x] Patient list page (CRUD)
+- [x] Routing with protected routes
 
 ### DevOps
-- [ ] Docker Compose (PostgreSQL, Redis, backend, frontend)
-- [ ] Environment configuration (.env files)
-- [ ] README with setup instructions
+- [x] Docker Compose (PostgreSQL, backend, frontend)
+- [x] Environment configuration (.env files)
+- [x] README with setup instructions
 
 ### Deliverable
 > A working multi-tenant app where a hospital admin can register, doctors can login, manage patients, and upload medical files. No AI yet.
@@ -49,10 +49,10 @@ Each MVP is self-contained, testable, and deployable independently.
 **Goal:** AI-powered analysis of X-ray, CT, ultrasound images with structured output.
 
 ### Backend
-- [ ] Spring AI integration with OpenAI GPT-4o (vision)
-- [ ] `AnalysisRequest` / `AnalysisResult` entities
-- [ ] Image analysis service — sends image + prompt → receives structured JSON
-- [ ] Structured output schema:
+- [x] Spring AI integration with OpenAI GPT-4o (vision)
+- [x] `AnalysisRequest` / `AnalysisResult` entities
+- [x] Image analysis service — sends image + prompt → receives structured JSON
+- [x] Structured output schema:
   ```json
   {
     "findings": [{"region": "...", "description": "...", "severity": "...", "confidence": 0.92}],
@@ -62,18 +62,18 @@ Each MVP is self-contained, testable, and deployable independently.
     "urgency": "ROUTINE | URGENT | CRITICAL"
   }
   ```
-- [ ] Analysis status tracking (PENDING → PROCESSING → COMPLETED → FAILED)
-- [ ] Async processing with Spring Events / RabbitMQ
-- [ ] Analysis history per patient (tenant-scoped)
-- [ ] Retry logic + fallback for API failures
-- [ ] Cost tracking per analysis (tokens used, model, cost)
+- [x] Analysis status tracking (PENDING → PROCESSING → COMPLETED → FAILED)
+- [x] Async processing with Spring Events
+- [x] Analysis history per patient (tenant-scoped)
+- [x] Retry logic + fallback for API failures
+- [x] Cost tracking per analysis (tokens used, model, cost) & per-tenant rate limiting
 
 ### Frontend
-- [ ] Image viewer component (zoom, pan, brightness/contrast)
-- [ ] Analysis request form (select image, add clinical notes)
-- [ ] Analysis results display (structured findings cards)
-- [ ] Analysis history timeline per patient
-- [ ] Loading states and error handling
+- [x] Image viewer component (zoom, pan, brightness/contrast, invert, rotate)
+- [x] Analysis request form (select image, add clinical notes)
+- [x] Analysis results display (structured findings cards)
+- [x] Analysis history timeline per patient
+- [x] Loading states and error handling
 
 ### Deliverable
 > Doctor uploads an X-ray → AI returns structured findings with severity, confidence, ICD-10 codes, and recommendations. Results stored and viewable per patient.
@@ -84,8 +84,8 @@ Each MVP is self-contained, testable, and deployable independently.
 **Goal:** OCR + AI extraction of blood reports, combined analysis with imaging.
 
 ### Backend
-- [ ] PDF/image OCR pipeline (Apache Tika / Tesseract / GPT-4o vision)
-- [ ] Blood report extraction service → structured output:
+- [x] PDF/image OCR pipeline (Apache Tika / Tesseract / GPT-4o vision)
+- [x] Blood report extraction service → structured output:
   ```json
   {
     "test_name": "Complete Blood Count",
@@ -96,17 +96,17 @@ Each MVP is self-contained, testable, and deployable independently.
     "flags": ["INFECTION_LIKELY"]
   }
   ```
-- [ ] Combined reasoning service — merges image findings + blood report + patient history
-- [ ] Unified diagnosis recommendation with confidence scoring
-- [ ] Report template engine (generate printable PDF reports)
-- [ ] Batch upload support (multiple files per analysis)
+- [x] Combined reasoning service — merges image findings + blood report + patient history
+- [x] Unified diagnosis recommendation with confidence scoring
+- [x] Report template engine (generate printable PDF reports)
+- [x] Batch upload support (multiple files per analysis)
 
 ### Frontend
-- [ ] Blood report upload + preview
-- [ ] Extracted values table with flag indicators (normal/high/low)
-- [ ] Combined analysis view (image + lab results side by side)
-- [ ] PDF report download
-- [ ] Comparison view (current vs. previous results)
+- [x] Blood report upload + preview
+- [x] Extracted values table with flag indicators (normal/high/low)
+- [x] Combined analysis view (image + lab results side by side)
+- [x] PDF report download
+- [x] Comparison view (current vs. previous results)
 
 ### Deliverable
 > Upload blood report PDF → AI extracts values, flags abnormalities, interprets. Combined with image analysis for unified diagnosis.

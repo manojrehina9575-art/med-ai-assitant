@@ -9,6 +9,7 @@ import com.medai.analysis.entity.AnalysisRequest;
 import com.medai.analysis.enums.AnalysisStatus;
 import com.medai.analysis.enums.AnalysisType;
 import com.medai.analysis.repository.AnalysisRequestRepository;
+import com.medai.config.RateLimitService;
 import com.medai.patient.entity.Patient;
 import com.medai.patient.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,11 @@ public class CombinedAnalysisService {
     private final ChatClient.Builder chatClientBuilder;
     private final AnalysisRequestRepository analysisRequestRepository;
     private final PatientRepository patientRepository;
+    private final RateLimitService rateLimitService;
     private final ObjectMapper objectMapper;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:llama-3.2-11b-vision-preview}")
+    private String modelName;
 
     private static final String COMBINED_ANALYSIS_PROMPT = """
             You are a senior diagnostic physician AI assistant. You have been provided with multiple analysis results
@@ -123,7 +128,7 @@ public class CombinedAnalysisService {
                     .call()
                     .chatResponse();
 
-            String content = response.getResult().getOutput().getText();
+            String content = response.getResult().getOutput().getContent();
 
             Integer promptTokens = null;
             Integer completionTokens = null;
@@ -132,11 +137,19 @@ public class CombinedAnalysisService {
 
             if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
                 var usage = response.getMetadata().getUsage();
-                promptTokens = (int) usage.getPromptTokens();
-                completionTokens = (int) usage.getCompletionTokens();
-                totalTokens = (int) usage.getTotalTokens();
-                cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
-                        .setScale(6, RoundingMode.HALF_UP);
+                if (usage.getPromptTokens() != null) {
+                    promptTokens = usage.getPromptTokens().intValue();
+                }
+                if (usage.getGenerationTokens() != null) {
+                    completionTokens = usage.getGenerationTokens().intValue();
+                }
+                if (usage.getTotalTokens() != null) {
+                    totalTokens = usage.getTotalTokens().intValue();
+                }
+                if (promptTokens != null && completionTokens != null) {
+                    cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
+                            .setScale(6, RoundingMode.HALF_UP);
+                }
             }
 
             String jsonContent = stripMarkdownCodeBlock(content);
@@ -145,13 +158,17 @@ public class CombinedAnalysisService {
             request.setStatus(AnalysisStatus.COMPLETED);
             request.setResult(jsonContent);
             request.setUrgency(result.getUrgency());
-            request.setModelUsed("gpt-4o");
+            request.setModelUsed((modelName != null && !modelName.isBlank()) ? modelName : "groq-vision");
             request.setPromptTokens(promptTokens);
             request.setCompletionTokens(completionTokens);
             request.setTotalTokens(totalTokens);
             request.setEstimatedCost(cost);
             request.setProcessingCompletedAt(Instant.now());
             analysisRequestRepository.save(request);
+
+            if (cost != null) {
+                rateLimitService.recordRequest(request.getTenantId(), cost);
+            }
 
             log.info("Combined analysis completed for request {} — urgency={}, diagnoses={}, confidence={}, tokens={}",
                     analysisRequestId, result.getUrgency(),

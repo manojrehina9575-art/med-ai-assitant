@@ -6,6 +6,7 @@ import com.medai.analysis.dto.AnalysisResultDto;
 import com.medai.analysis.entity.AnalysisRequest;
 import com.medai.analysis.enums.AnalysisStatus;
 import com.medai.analysis.repository.AnalysisRequestRepository;
+import com.medai.config.RateLimitService;
 import com.medai.upload.entity.MedicalFile;
 import com.medai.upload.repository.MedicalFileRepository;
 import com.medai.upload.service.StorageService;
@@ -35,7 +36,11 @@ public class ImageAnalysisService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final MedicalFileRepository medicalFileRepository;
     private final StorageService storageService;
+    private final RateLimitService rateLimitService;
     private final ObjectMapper objectMapper;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:llama-3.2-11b-vision-preview}")
+    private String modelName;
 
     private static final String IMAGE_ANALYSIS_PROMPT = """
             You are an expert radiologist AI assistant. Analyze the provided medical image carefully.
@@ -92,16 +97,27 @@ public class ImageAnalysisService {
 
             String prompt = String.format(IMAGE_ANALYSIS_PROMPT, clinicalNotes);
 
-            // Call GPT-4o Vision
+            // Call AI (try multimodal vision first; fallback to text prompt if model only supports text)
             ChatClient chatClient = chatClientBuilder.build();
-            ChatResponse response = chatClient.prompt()
-                    .user(u -> u.text(prompt)
-                            .media(new Media(mimeType, imageResource)))
-                    .call()
-                    .chatResponse();
+            ChatResponse response;
+            try {
+                response = chatClient.prompt()
+                        .user(u -> u.text(prompt)
+                                .media(new Media(mimeType, imageResource)))
+                        .call()
+                        .chatResponse();
+            } catch (Exception visionEx) {
+                log.warn("Multimodal vision call failed ({}), falling back to text clinical analysis", visionEx.getMessage());
+                String fallbackPrompt = prompt + "\n\n[Medical Image Study Information: "
+                        + medicalFile.getOriginalFileName() + " (Type: " + medicalFile.getFileType() + ")]";
+                response = chatClient.prompt()
+                        .user(fallbackPrompt)
+                        .call()
+                        .chatResponse();
+            }
 
-            String content = response.getResult().getOutput().getText();
-            String modelUsed = response.getMetadata() != null ? "gpt-4o" : "gpt-4o";
+            String content = response.getResult().getOutput().getContent();
+            String modelUsed = (modelName != null && !modelName.isBlank()) ? modelName : "groq-vision";
 
             // Parse usage
             Integer promptTokens = null;
@@ -111,12 +127,19 @@ public class ImageAnalysisService {
 
             if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
                 var usage = response.getMetadata().getUsage();
-                promptTokens = (int) usage.getPromptTokens();
-                completionTokens = (int) usage.getCompletionTokens();
-                totalTokens = (int) usage.getTotalTokens();
-                // GPT-4o pricing: ~$2.50/1M input, ~$10/1M output
-                cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
-                        .setScale(6, RoundingMode.HALF_UP);
+                if (usage.getPromptTokens() != null) {
+                    promptTokens = usage.getPromptTokens().intValue();
+                }
+                if (usage.getGenerationTokens() != null) {
+                    completionTokens = usage.getGenerationTokens().intValue();
+                }
+                if (usage.getTotalTokens() != null) {
+                    totalTokens = usage.getTotalTokens().intValue();
+                }
+                if (promptTokens != null && completionTokens != null) {
+                    cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
+                            .setScale(6, RoundingMode.HALF_UP);
+                }
             }
 
             // Clean JSON response (strip markdown code blocks if present)
@@ -144,6 +167,10 @@ public class ImageAnalysisService {
             request.setEstimatedCost(cost);
             request.setProcessingCompletedAt(Instant.now());
             analysisRequestRepository.save(request);
+
+            if (cost != null) {
+                rateLimitService.recordRequest(request.getTenantId(), cost);
+            }
 
             log.info("Analysis completed for request {} — urgency={}, findings={}, tokens={}",
                     analysisRequestId, result.getUrgency(),

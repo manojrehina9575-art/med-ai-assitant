@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: medai-postgres
     environment:
       POSTGRES_DB: ${DB_NAME:-medai}
@@ -27,9 +27,6 @@ services:
       SPRING_PROFILES_ACTIVE: dev
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-medai}
-      DB_USERNAME: ${DB_USERNAME:-medai}
-      DB_PASSWORD: ${DB_PASSWORD:-medai_secret}
       STORAGE_TYPE: local
       STORAGE_LOCAL_PATH: /app/uploads
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000

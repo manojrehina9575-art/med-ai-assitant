@@ -8,9 +8,9 @@ import {
   type BloodReportResult,
   type CombinedAnalysisResult,
 } from '@/services/analysisService';
+import { ImageViewer } from '@/components/medical/ImageViewer';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import {
   FileText,
   Loader2,
@@ -22,30 +22,34 @@ import {
   ChevronDown,
   ChevronUp,
   Zap,
-  ArrowUpDown,
   Combine,
+  Activity,
+  Copy,
+  Check,
+  Sparkles,
+  Printer,
 } from 'lucide-react';
 import type { Patient, MedicalFile } from '@/types';
 
-const FLAG_COLORS: Record<string, string> = {
-  NORMAL: 'text-green-700 bg-green-50',
-  HIGH: 'text-orange-700 bg-orange-50',
-  LOW: 'text-blue-700 bg-blue-50',
-  CRITICAL_HIGH: 'text-red-700 bg-red-100 font-bold',
-  CRITICAL_LOW: 'text-red-700 bg-red-100 font-bold',
+const FLAG_CONFIG: Record<string, { badge: string; dot: string; label: string }> = {
+  NORMAL: { badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', dot: 'bg-emerald-500', label: 'Normal' },
+  HIGH: { badge: 'bg-orange-500/10 text-orange-400 border-orange-500/20 font-semibold', dot: 'bg-orange-500', label: 'High' },
+  LOW: { badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20 font-semibold', dot: 'bg-blue-500', label: 'Low' },
+  CRITICAL_HIGH: { badge: 'bg-red-500/20 text-red-300 border-red-500/30 font-bold animate-pulse', dot: 'bg-red-500', label: 'Critical High' },
+  CRITICAL_LOW: { badge: 'bg-red-500/20 text-red-300 border-red-500/30 font-bold animate-pulse', dot: 'bg-red-500', label: 'Critical Low' },
 };
 
-const URGENCY_COLORS: Record<string, string> = {
-  ROUTINE: 'bg-green-100 text-green-700',
-  URGENT: 'bg-orange-100 text-orange-700',
-  CRITICAL: 'bg-red-100 text-red-700',
+const URGENCY_CONFIG: Record<string, { badge: string; label: string }> = {
+  ROUTINE: { badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Routine' },
+  URGENT: { badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20', label: 'Urgent Attention' },
+  CRITICAL: { badge: 'bg-red-500/20 text-red-300 border-red-500/30 animate-pulse font-bold', label: 'Critical STAT' },
 };
 
-const STATUS_CONFIG: Record<string, { icon: typeof Clock; color: string; label: string }> = {
-  PENDING: { icon: Clock, color: 'text-blue-500', label: 'Pending' },
-  PROCESSING: { icon: Loader2, color: 'text-yellow-500', label: 'Processing' },
-  COMPLETED: { icon: CheckCircle2, color: 'text-green-500', label: 'Completed' },
-  FAILED: { icon: XCircle, color: 'text-red-500', label: 'Failed' },
+const STATUS_CONFIG: Record<string, { icon: typeof Clock; color: string; badge: string; label: string }> = {
+  PENDING: { icon: Clock, color: 'text-blue-400', badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20', label: 'Queued' },
+  PROCESSING: { icon: Loader2, color: 'text-amber-400', badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20', label: 'AI Extracting...' },
+  COMPLETED: { icon: CheckCircle2, color: 'text-emerald-400', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Completed' },
+  FAILED: { icon: XCircle, color: 'text-red-400', badge: 'bg-red-500/10 text-red-400 border-red-500/20', label: 'Failed' },
 };
 
 export function BloodReportPage() {
@@ -60,28 +64,53 @@ export function BloodReportPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [polling, setPolling] = useState<string | null>(null);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
+  // Load Patients
   useEffect(() => {
     patientService.list(0, 100).then((res) => setPatients(res.content)).catch(() => {});
   }, []);
 
+  // Load Patient Files
   useEffect(() => {
-    if (!selectedPatient) { setFiles([]); setSelectedFile(''); return; }
-    fileService.list(selectedPatient, 0, 100).then((res) => setFiles(res.content)).catch(() => {});
+    if (!selectedPatient) {
+      setFiles([]);
+      setSelectedFile('');
+      return;
+    }
+    fileService
+      .list(selectedPatient, 0, 100)
+      .then((res) => {
+        setFiles(res.content);
+        if (res.content.length > 0 && !selectedFile) {
+          setSelectedFile(res.content[0].id);
+        }
+      })
+      .catch(() => {});
   }, [selectedPatient]);
 
+  // Load Analyses
   const loadAnalyses = useCallback(async () => {
     if (!selectedPatient) return;
     try {
       const res = await analysisService.listByPatient(selectedPatient);
-      setAnalyses(res.content.filter(
+      const filtered = res.content.filter(
         (a) => a.analysisType === 'BLOOD_REPORT' || a.analysisType === 'COMBINED'
-      ));
-    } catch { /* ignore */ }
-  }, [selectedPatient]);
+      );
+      setAnalyses(filtered);
+      if (filtered.length > 0 && !expandedId) {
+        setExpandedId(filtered[0].id);
+      }
+    } catch {
+      // silent
+    }
+  }, [selectedPatient, expandedId]);
 
-  useEffect(() => { loadAnalyses(); }, [loadAnalyses]);
+  useEffect(() => {
+    loadAnalyses();
+  }, [loadAnalyses]);
 
+  // Polling
   useEffect(() => {
     if (!polling) return;
     const interval = setInterval(async () => {
@@ -89,336 +118,493 @@ export function BloodReportPage() {
         const updated = await analysisService.get(polling);
         if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
           setPolling(null);
+          setSubmitting(false);
+          setExpandedId(updated.id);
           loadAnalyses();
         }
-      } catch { setPolling(null); }
-    }, 3000);
+      } catch {
+        setPolling(null);
+        setSubmitting(false);
+      }
+    }, 2000);
     return () => clearInterval(interval);
   }, [polling, loadAnalyses]);
 
   const handleSubmit = async () => {
-    if (!selectedPatient || !selectedFile) return;
-    setError('');
+    if (!selectedPatient || !selectedFile) {
+      setError('Please select both a patient and a laboratory file.');
+      return;
+    }
+
     setSubmitting(true);
+    setError('');
+
     try {
-      const fn = analysisMode === 'combined'
-        ? analysisService.requestCombined
-        : analysisService.requestBloodReport;
-      const result = await fn(selectedPatient, selectedFile, clinicalNotes || undefined);
-      setPolling(result.id);
-      setClinicalNotes('');
+      let created: AnalysisResponse;
+      if (analysisMode === 'blood') {
+        created = await analysisService.requestBloodReport(selectedPatient, selectedFile, clinicalNotes || undefined);
+      } else {
+        created = await analysisService.requestCombined(selectedPatient, selectedFile, clinicalNotes || undefined);
+      }
+
+      setPolling(created.id);
+      setExpandedId(created.id);
       loadAnalyses();
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string } } };
-      setError(e.response?.data?.message || 'Failed to submit analysis');
-    } finally {
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to submit analysis.');
       setSubmitting(false);
     }
   };
 
-  const handleRetry = async (id: string) => {
+  const handleRetry = async (analysisId: string) => {
     try {
-      const result = await analysisService.retry(id);
-      setPolling(result.id);
+      const retried = await analysisService.retry(analysisId);
+      setPolling(retried.id);
+      setExpandedId(retried.id);
       loadAnalyses();
-    } catch { /* ignore */ }
+    } catch {
+      setError('Failed to retry analysis.');
+    }
   };
 
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  const selectedPatientObj = patients.find((p) => p.id === selectedPatient);
+  const selectedFileObj = files.find((f) => f.id === selectedFile);
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Blood Report &amp; Combined Analysis</h1>
-        <p className="text-muted-foreground">
-          Extract lab values from blood reports and combine with imaging for unified diagnosis
-        </p>
+    <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
+      {/* 1. Executive Header */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-slate-800/80 pb-5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 shadow-md">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              Laboratory Pathology & Combined Diagnostic Engine
+            </h1>
+            <p className="text-xs text-slate-400">
+              Automated biomarker extraction, abnormality flagging, and multimodal diagnostic correlation
+            </p>
+          </div>
+        </div>
+
+        {/* Global Patient Selector */}
+        <div className="flex items-center gap-3">
+          <div className="relative min-w-[280px]">
+            <select
+              className="h-10 w-full appearance-none rounded-lg border border-slate-700 bg-slate-900 px-3.5 pr-9 text-xs font-medium text-slate-200 shadow-inner transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={selectedPatient}
+              onChange={(e) => {
+                setSelectedPatient(e.target.value);
+                setSelectedFile('');
+              }}
+            >
+              <option value="">Select Patient Record...</option>
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.fullName} (MRN: {p.medicalRecordNumber})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-slate-400" />
+          </div>
+
+          {selectedPatientObj && (
+            <div className="hidden items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs sm:flex">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600/20 font-bold text-emerald-400">
+                {selectedPatientObj.fullName.charAt(0)}
+              </div>
+              <div>
+                <p className="font-semibold text-slate-200">{selectedPatientObj.fullName}</p>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  {selectedPatientObj.gender} &bull; Blood: {selectedPatientObj.bloodGroup || 'N/A'}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Form */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              New Report Analysis
-            </CardTitle>
-            <CardDescription>Upload a blood report for AI extraction</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Patient</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={selectedPatient}
-                onChange={(e) => { setSelectedPatient(e.target.value); setSelectedFile(''); }}
-              >
-                <option value="">Select patient...</option>
-                {patients.map((p) => (
-                  <option key={p.id} value={p.id}>{p.fullName} ({p.medicalRecordNumber})</option>
-                ))}
-              </select>
+      {error && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-red-500/30 bg-red-950/40 p-3 text-xs text-red-300 backdrop-blur-md">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Main Diagnostic Workspace */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left Column: Interactive Study Ingestion & Document Canvas (7 cols) */}
+        <div className="space-y-4 lg:col-span-7">
+          {/* Active Medical Study Viewer */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 shadow-xl backdrop-blur-md">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  Laboratory Document & Report Preview
+                </h3>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {files.length} Patient Documents
+              </span>
             </div>
 
-            <div className="space-y-2">
-              <Label>Blood Report File</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={selectedFile}
-                onChange={(e) => setSelectedFile(e.target.value)}
-                disabled={!selectedPatient || files.length === 0}
-              >
-                <option value="">Select file...</option>
-                {files.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.originalFileName} ({f.fileType.replace('_', ' ')})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {selectedPatient && selectedFile ? (
+              <ImageViewer
+                patientId={selectedPatient}
+                fileId={selectedFile}
+                fileName={selectedFileObj?.originalFileName || 'Lab Report Document'}
+                fileType={selectedFileObj?.fileType.replace('_', ' ')}
+                fileList={files}
+                onSelectFile={(fId) => setSelectedFile(fId)}
+                className="h-[490px]"
+              />
+            ) : (
+              <div className="flex h-[400px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-800/60 text-slate-500 mb-3">
+                  <FileText className="h-7 w-7" />
+                </div>
+                <h4 className="text-sm font-semibold text-slate-300">No Laboratory Report Selected</h4>
+                <p className="mt-1 max-w-sm text-xs text-slate-500">
+                  Select a patient above to inspect blood tests, CBC panels, or pathology documents.
+                </p>
+              </div>
+            )}
+          </div>
 
-            <div className="space-y-2">
-              <Label>Analysis Mode</Label>
-              <div className="grid grid-cols-2 gap-2">
+          {/* AI Clinical Execution Card */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 shadow-lg backdrop-blur-md space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  Diagnostic Reasoning Mode
+                </h3>
+              </div>
+
+              {/* Mode Toggle */}
+              <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-1 text-xs">
                 <button
                   type="button"
-                  className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 rounded px-3 py-1 font-semibold transition-all ${
                     analysisMode === 'blood'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-input hover:bg-accent'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                   onClick={() => setAnalysisMode('blood')}
                 >
-                  <ArrowUpDown className="h-4 w-4" />
-                  Blood Report
+                  <FileText className="h-3.5 w-3.5" />
+                  Blood Report Only
                 </button>
                 <button
                   type="button"
-                  className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 rounded px-3 py-1 font-semibold transition-all ${
                     analysisMode === 'combined'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-input hover:bg-accent'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                   onClick={() => setAnalysisMode('combined')}
                 >
-                  <Combine className="h-4 w-4" />
-                  Combined
+                  <Combine className="h-3.5 w-3.5" />
+                  Combined Reasoning (Lab + Imaging)
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {analysisMode === 'combined'
-                  ? 'Merges imaging + blood report + patient history for unified diagnosis'
-                  : 'Extracts lab values with flags and clinical interpretation'}
-              </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Clinical Notes (optional)</Label>
+              <Label className="text-xs text-slate-400">Clinical Indication & Suspected Conditions</Label>
               <textarea
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder="Patient symptoms, history, suspected conditions..."
+                rows={2}
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-200 placeholder-slate-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-sans"
+                placeholder="e.g. Complete Blood Count (CBC) with differential. Patient presents with unexplained fever and leukocytosis..."
                 value={clinicalNotes}
                 onChange={(e) => setClinicalNotes(e.target.value)}
               />
             </div>
 
-            {error && (
-              <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                <AlertTriangle className="h-4 w-4" />
-                {error}
-              </div>
-            )}
-
-            <Button className="w-full" onClick={handleSubmit} disabled={!selectedPatient || !selectedFile || submitting}>
-              {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-              {analysisMode === 'combined' ? 'Run Combined Analysis' : 'Analyze Blood Report'}
+            <Button
+              className={`w-full h-11 text-white font-semibold shadow-lg transition-all ${
+                analysisMode === 'blood'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/20'
+              }`}
+              onClick={handleSubmit}
+              disabled={!selectedPatient || !selectedFile || submitting}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Extracting Biomarkers & Running Clinical Correlation...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  {analysisMode === 'blood' ? 'Extract & Analyze Blood Report' : 'Execute Combined Multimodal Diagnostic'}
+                </>
+              )}
             </Button>
+          </div>
+        </div>
 
-            {polling && (
-              <div className="flex items-center gap-2 rounded-md bg-blue-50 p-3 text-sm text-blue-700">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analysis in progress... auto-refreshing
+        {/* Right Column: Extracted Values Table & Pathology Findings (5 cols) */}
+        <div className="space-y-4 lg:col-span-5">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-emerald-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                Extracted Laboratory Findings
+              </h3>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">{analyses.length} Evaluations</span>
+          </div>
+
+          {/* Analyses List */}
+          {analyses.length === 0 ? (
+            <div className="flex h-[460px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/20 p-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400 mb-3">
+                <FileText className="h-6 w-6" />
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Results */}
-        <div className="space-y-4 lg:col-span-2">
-          <h2 className="text-xl font-semibold">
-            {selectedPatient ? 'Report History' : 'Select a patient to view reports'}
-          </h2>
-
-          {!selectedPatient ? (
-            <Card>
-              <CardContent className="flex flex-col items-center py-12">
-                <FileText className="mb-3 h-12 w-12 text-muted-foreground" />
-                <p className="text-muted-foreground">Select a patient to see blood report analyses</p>
-              </CardContent>
-            </Card>
-          ) : analyses.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center py-12">
-                <FileText className="mb-3 h-12 w-12 text-muted-foreground" />
-                <p className="font-medium">No blood report analyses yet</p>
-                <p className="text-sm text-muted-foreground">Submit a blood report for AI extraction</p>
-              </CardContent>
-            </Card>
+              <h4 className="text-sm font-semibold text-slate-300">No Laboratory Records Yet</h4>
+              <p className="mt-1 max-w-xs text-xs text-slate-500">
+                Run an extraction on the uploaded lab document to generate structured biomarker tables and diagnostic interpretations.
+              </p>
+            </div>
           ) : (
-            analyses.map((a) => {
-              const statusCfg = STATUS_CONFIG[a.status] || STATUS_CONFIG.PENDING;
-              const StatusIcon = statusCfg.icon;
-              const isExpanded = expandedId === a.id;
+            <div className="space-y-4 max-h-[820px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+              {analyses.map((a) => {
+                const isExpanded = expandedId === a.id;
+                const statusCfg = STATUS_CONFIG[a.status] || STATUS_CONFIG.PENDING;
+                const StatusIcon = statusCfg.icon;
+                const urgencyCfg = a.urgency ? URGENCY_CONFIG[a.urgency] : null;
 
-              return (
-                <Card key={a.id} className="overflow-hidden">
+                const bloodResult = a.analysisType === 'BLOOD_REPORT' ? parseResult<BloodReportResult>(a) : null;
+                const combinedResult = a.analysisType === 'COMBINED' ? parseResult<CombinedAnalysisResult>(a) : null;
+
+                return (
                   <div
-                    className="flex cursor-pointer items-center gap-4 p-4 hover:bg-accent/30"
-                    onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                    key={a.id}
+                    className={`rounded-xl border transition-all overflow-hidden ${
+                      isExpanded
+                        ? 'border-slate-700 bg-slate-900/90 shadow-2xl ring-1 ring-emerald-500/20'
+                        : 'border-slate-800/80 bg-slate-950/80 hover:border-slate-700'
+                    }`}
                   >
-                    <StatusIcon className={`h-5 w-5 ${statusCfg.color} ${a.status === 'PROCESSING' ? 'animate-spin' : ''}`} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{a.analysisType.replace('_', ' ')}</span>
-                        {a.urgency && (
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${URGENCY_COLORS[a.urgency] || ''}`}>
-                            {a.urgency}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(a.createdAt).toLocaleString()}
-                        {a.totalTokens && ` \u00b7 ${a.totalTokens} tokens`}
-                        {a.estimatedCost && ` \u00b7 $${a.estimatedCost.toFixed(4)}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        a.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                        a.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                        a.status === 'PROCESSING' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
-                        {statusCfg.label}
-                      </span>
-                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="border-t p-4">
-                      {a.status === 'FAILED' && (
-                        <div className="mb-4 flex items-center justify-between rounded-md bg-red-50 p-3">
-                          <p className="text-sm text-red-700">{a.errorMessage || 'Analysis failed'}</p>
-                          <Button size="sm" variant="outline" onClick={() => handleRetry(a.id)}>
-                            <RefreshCw className="mr-1 h-3 w-3" /> Retry
-                          </Button>
+                    {/* Header */}
+                    <div
+                      className="flex cursor-pointer items-center justify-between p-4 hover:bg-slate-900/60"
+                      onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
+                          a.analysisType === 'COMBINED'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        }`}>
+                          {a.analysisType === 'COMBINED' ? <Combine className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                         </div>
-                      )}
+                        <div className="overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-xs text-slate-200">
+                              {a.analysisType === 'COMBINED' ? 'Combined Diagnostic Assessment' : 'Blood Panel Extraction'}
+                            </span>
+                            {urgencyCfg && (
+                              <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${urgencyCfg.badge}`}>
+                                {urgencyCfg.label}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {new Date(a.createdAt).toLocaleString()} &bull; {a.modelUsed || 'AI Engine'}
+                          </p>
+                        </div>
+                      </div>
 
-                      {a.rawResult && a.analysisType === 'BLOOD_REPORT' && (() => {
-                        const parsed = parseResult(a) as BloodReportResult | null;
-                        if (!parsed) return null;
-                        return (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border ${statusCfg.badge}`}>
+                          <StatusIcon className={`h-3 w-3 ${a.status === 'PROCESSING' ? 'animate-spin' : ''}`} />
+                          {statusCfg.label}
+                        </span>
+                        {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-800/80 p-4 space-y-4 bg-slate-950/60 text-xs">
+                        {/* Error & Retry */}
+                        {a.status === 'FAILED' && (
+                          <div className="flex items-center justify-between rounded-lg border border-red-500/30 bg-red-950/40 p-3 text-red-300">
+                            <span>{a.errorMessage || 'Laboratory extraction interrupted.'}</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRetry(a.id)}
+                              className="border-red-800 bg-red-900/40 text-red-200 hover:bg-red-800"
+                            >
+                              <RefreshCw className="mr-1 h-3 w-3" /> Retry
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Processing */}
+                        {a.status === 'PROCESSING' && (
+                          <div className="flex flex-col items-center justify-center p-8 text-center space-y-3">
+                            <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+                            <p className="text-xs font-medium text-slate-300">
+                              Neural vision network parsing laboratory document and biomarker matrix...
+                            </p>
+                          </div>
+                        )}
+
+                        {/* BLOOD REPORT VIEW */}
+                        {a.status === 'COMPLETED' && bloodResult && (
                           <div className="space-y-4">
-                            <div className="rounded-lg bg-primary/5 p-4">
-                              <h4 className="text-sm font-semibold">{parsed.testName}</h4>
-                              <p className="mt-1 text-sm">{parsed.interpretation}</p>
-                            </div>
-
-                            {parsed.flags && parsed.flags.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {parsed.flags.map((flag, idx) => (
-                                  <span key={idx} className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                                    {flag.replace(/_/g, ' ')}
+                            {/* Pathology Flags */}
+                            {bloodResult.flags && bloodResult.flags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {bloodResult.flags.map((flag, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-300 border border-red-500/30"
+                                  >
+                                    &bull; {flag}
                                   </span>
                                 ))}
                               </div>
                             )}
 
-                            {parsed.parameters && parsed.parameters.length > 0 && (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
+                            {/* Interpretation Card */}
+                            <div className="rounded-lg border border-slate-800 bg-slate-900/90 p-3.5 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-400 flex items-center gap-1">
+                                  <Activity className="h-3 w-3" />
+                                  Pathologist Interpretation
+                                </span>
+                                <button
+                                  onClick={() => handleCopy(bloodResult.interpretation)}
+                                  className="text-slate-400 hover:text-slate-200 transition-colors"
+                                  title="Copy Interpretation"
+                                >
+                                  {copiedText === bloodResult.interpretation ? (
+                                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                              <p className="text-xs text-slate-200 leading-relaxed font-sans font-medium">
+                                {bloodResult.interpretation}
+                              </p>
+                            </div>
+
+                            {/* Extracted Parameters Table */}
+                            {bloodResult.parameters && bloodResult.parameters.length > 0 && (
+                              <div className="rounded-lg border border-slate-800 overflow-hidden bg-slate-900/40">
+                                <div className="bg-slate-900 px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+                                  <span className="font-bold uppercase tracking-wider text-[10px] text-slate-300">
+                                    {bloodResult.testName || 'Complete Blood Count (CBC) Panel'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500">
+                                    {bloodResult.parameters.length} Biomarkers
+                                  </span>
+                                </div>
+                                <table className="w-full text-left text-xs">
                                   <thead>
-                                    <tr className="border-b text-left text-muted-foreground">
-                                      <th className="pb-2 pr-4 font-medium">Parameter</th>
-                                      <th className="pb-2 pr-4 font-medium">Value</th>
-                                      <th className="pb-2 pr-4 font-medium">Unit</th>
-                                      <th className="pb-2 pr-4 font-medium">Reference</th>
-                                      <th className="pb-2 font-medium">Status</th>
+                                    <tr className="border-b border-slate-800 text-[10px] font-semibold text-slate-400 bg-slate-950/40">
+                                      <th className="p-2.5">Parameter</th>
+                                      <th className="p-2.5">Value</th>
+                                      <th className="p-2.5">Ref Range</th>
+                                      <th className="p-2.5 text-right">Status</th>
                                     </tr>
                                   </thead>
-                                  <tbody>
-                                    {parsed.parameters.map((p, idx) => (
-                                      <tr key={idx} className="border-b last:border-0">
-                                        <td className="py-2 pr-4 font-medium">{p.name}</td>
-                                        <td className="py-2 pr-4">{p.value}</td>
-                                        <td className="py-2 pr-4 text-muted-foreground">{p.unit}</td>
-                                        <td className="py-2 pr-4 text-muted-foreground">{p.referenceRange}</td>
-                                        <td className="py-2">
-                                          <span className={`rounded px-2 py-0.5 text-xs font-medium ${FLAG_COLORS[p.flag] || 'bg-gray-100 text-gray-700'}`}>
-                                            {p.flag.replace(/_/g, ' ')}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    ))}
+                                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                                    {bloodResult.parameters.map((param, idx) => {
+                                      const flagCfg = FLAG_CONFIG[param.flag] || FLAG_CONFIG.NORMAL;
+
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-900/40">
+                                          <td className="p-2.5 font-sans font-semibold text-slate-200">
+                                            {param.name}
+                                          </td>
+                                          <td className="p-2.5 font-bold text-slate-100">
+                                            {param.value} <span className="text-[10px] font-normal text-slate-400">{param.unit}</span>
+                                          </td>
+                                          <td className="p-2.5 text-slate-400 text-[11px]">
+                                            {param.referenceRange || 'N/A'}
+                                          </td>
+                                          <td className="p-2.5 text-right">
+                                            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] border ${flagCfg.badge}`}>
+                                              <span className={`h-1.5 w-1.5 rounded-full ${flagCfg.dot}`} />
+                                              {flagCfg.label}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>
                             )}
-                          </div>
-                        );
-                      })()}
 
-                      {a.rawResult && a.analysisType === 'COMBINED' && (() => {
-                        const parsed = parseResult(a) as CombinedAnalysisResult | null;
-                        if (!parsed) return null;
-                        return (
+                            {/* Print Report */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+                              onClick={() => window.print()}
+                            >
+                              <Printer className="mr-2 h-3.5 w-3.5" />
+                              Print Laboratory Pathology Report
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* COMBINED MULTIMODAL VIEW */}
+                        {a.status === 'COMPLETED' && combinedResult && (
                           <div className="space-y-4">
-                            <div className="rounded-lg bg-primary/5 p-4">
-                              <h4 className="mb-1 text-sm font-semibold">Overall Assessment</h4>
-                              <p className="text-sm">{parsed.overallAssessment}</p>
+                            {/* Overall Assessment */}
+                            <div className="rounded-lg border border-blue-900/40 bg-blue-950/20 p-3.5 space-y-2">
+                              <span className="font-bold uppercase tracking-wider text-[10px] text-blue-400 flex items-center gap-1">
+                                <Combine className="h-3.5 w-3.5" />
+                                Unified Diagnostic Assessment
+                              </span>
+                              <p className="text-xs text-slate-200 leading-relaxed font-sans font-medium">
+                                {combinedResult.overallAssessment}
+                              </p>
                             </div>
 
-                            {parsed.clinicalCorrelation && (
-                              <div className="rounded-lg border p-4">
-                                <h4 className="mb-1 text-sm font-semibold">Clinical Correlation</h4>
-                                <p className="text-sm text-muted-foreground">{parsed.clinicalCorrelation}</p>
-                              </div>
-                            )}
-
-                            {parsed.criticalFindings && parsed.criticalFindings.length > 0 && (
-                              <div className="rounded-lg bg-red-50 p-4">
-                                <h4 className="mb-2 text-sm font-semibold text-red-700">Critical Findings</h4>
-                                <ul className="space-y-1">
-                                  {parsed.criticalFindings.map((f, idx) => (
-                                    <li key={idx} className="flex items-start gap-2 text-sm text-red-700">
-                                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                      {f}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {parsed.diagnoses && parsed.diagnoses.length > 0 && (
-                              <div>
-                                <h4 className="mb-2 text-sm font-semibold">Diagnoses</h4>
+                            {/* Diagnoses with Confidence & Supporting Evidence */}
+                            {combinedResult.diagnoses && combinedResult.diagnoses.length > 0 && (
+                              <div className="space-y-2">
+                                <span className="font-bold uppercase tracking-wider text-[10px] text-slate-400">
+                                  Differential Diagnoses & Evidence
+                                </span>
                                 <div className="space-y-2">
-                                  {parsed.diagnoses.map((d, idx) => (
-                                    <div key={idx} className="rounded-lg border p-3">
+                                  {combinedResult.diagnoses.map((diag, idx) => (
+                                    <div key={idx} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 space-y-1.5">
                                       <div className="flex items-center justify-between">
-                                        <span className="font-medium text-sm">{d.diagnosis}</span>
+                                        <span className="font-bold text-slate-200">{diag.diagnosis}</span>
                                         <div className="flex items-center gap-2">
-                                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-mono">{d.icd10Code}</span>
-                                          <span className="text-xs text-muted-foreground">{(d.confidence * 100).toFixed(0)}%</span>
+                                          <span className="font-mono text-[10px] text-blue-400 font-bold">
+                                            {Math.round(diag.confidence * 100)}% Confidence
+                                          </span>
+                                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-mono text-blue-300 border border-blue-500/20">
+                                            {diag.icd10Code}
+                                          </span>
                                         </div>
                                       </div>
-                                      {d.supportingEvidence && d.supportingEvidence.length > 0 && (
-                                        <ul className="mt-2 space-y-0.5">
-                                          {d.supportingEvidence.map((ev, eidx) => (
-                                            <li key={eidx} className="flex items-start gap-2 text-xs text-muted-foreground">
-                                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-                                              {ev}
-                                            </li>
+                                      {diag.supportingEvidence && diag.supportingEvidence.length > 0 && (
+                                        <ul className="list-disc list-inside text-slate-400 text-[11px] space-y-0.5">
+                                          {diag.supportingEvidence.map((ev, eIdx) => (
+                                            <li key={eIdx}>{ev}</li>
                                           ))}
                                         </ul>
                                       )}
@@ -428,33 +614,27 @@ export function BloodReportPage() {
                               </div>
                             )}
 
-                            {parsed.recommendations && parsed.recommendations.length > 0 && (
-                              <div>
-                                <h4 className="mb-2 text-sm font-semibold">Recommendations</h4>
-                                <ul className="space-y-1">
-                                  {parsed.recommendations.map((rec, idx) => (
-                                    <li key={idx} className="flex items-start gap-2 text-sm">
-                                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                                      {rec}
-                                    </li>
+                            {/* Recommendations */}
+                            {combinedResult.recommendations && combinedResult.recommendations.length > 0 && (
+                              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-1.5">
+                                <span className="font-bold uppercase tracking-wider text-[10px] text-amber-400">
+                                  Unified Clinical Recommendations
+                                </span>
+                                <ul className="space-y-1 text-slate-300 text-xs list-disc list-inside">
+                                  {combinedResult.recommendations.map((rec, idx) => (
+                                    <li key={idx}>{rec}</li>
                                   ))}
                                 </ul>
                               </div>
                             )}
-
-                            {parsed.confidenceScore != null && (
-                              <div className="text-sm text-muted-foreground">
-                                Overall Confidence: <span className="font-medium">{(parsed.confidenceScore * 100).toFixed(0)}%</span>
-                              </div>
-                            )}
                           </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </Card>
-              );
-            })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

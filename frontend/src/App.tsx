@@ -9,6 +9,7 @@ import { UploadPage } from '@/pages/UploadPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { AnalysisPage } from '@/pages/AnalysisPage';
 import { BloodReportPage } from '@/pages/BloodReportPage';
+import { KnowledgeBasePage } from '@/pages/KnowledgeBasePage';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/blood-reports" element={<BloodReportPage />} />
+        <Route path="/knowledge" element={<KnowledgeBasePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

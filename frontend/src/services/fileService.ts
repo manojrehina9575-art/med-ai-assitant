@@ -33,6 +33,17 @@ export const fileService = {
     return `/api/patients/${patientId}/files/${fileId}/download`;
   },
 
+  getViewUrl(patientId: string, fileId: string): string {
+    return `/api/patients/${patientId}/files/${fileId}/view`;
+  },
+
+  async getFileBlob(patientId: string, fileId: string): Promise<Blob> {
+    const res = await api.get(`/patients/${patientId}/files/${fileId}/view`, {
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
   async delete(patientId: string, fileId: string): Promise<void> {
     await api.delete(`/patients/${patientId}/files/${fileId}`);
   },

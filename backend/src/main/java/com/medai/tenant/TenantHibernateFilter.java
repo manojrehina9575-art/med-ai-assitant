@@ -7,8 +7,6 @@ import org.hibernate.Session;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.UUID;
 
@@ -30,7 +28,6 @@ import java.util.UUID;
 public class TenantHibernateFilter implements HandlerInterceptor {
 
     private final EntityManager entityManager;
-    private final DataSource dataSource;
 
     @Override
     public boolean preHandle(jakarta.servlet.http.HttpServletRequest request,
@@ -56,18 +53,18 @@ public class TenantHibernateFilter implements HandlerInterceptor {
 
     /**
      * Sets the PostgreSQL session variable used by Row-Level Security policies.
-     * Uses SET LOCAL so the variable is scoped to the current transaction.
+     * Uses set_config('app.current_tenant', ?, false) which supports prepared statement parameters.
      */
     private void setRlsSessionVariable(UUID tenantId) {
         try {
-            Connection connection = dataSource.getConnection();
-            try (PreparedStatement stmt = connection.prepareStatement(
-                    "SET LOCAL app.current_tenant = ?")) {
-                stmt.setString(1, tenantId.toString());
-                stmt.execute();
-            } finally {
-                connection.close();
-            }
+            Session session = entityManager.unwrap(Session.class);
+            session.doWork(connection -> {
+                try (PreparedStatement stmt = connection.prepareStatement(
+                        "SELECT set_config('app.current_tenant', ?, false)")) {
+                    stmt.setString(1, tenantId.toString());
+                    stmt.execute();
+                }
+            });
         } catch (Exception e) {
             log.warn("Failed to set RLS session variable for tenant {}: {}", tenantId, e.getMessage());
         }

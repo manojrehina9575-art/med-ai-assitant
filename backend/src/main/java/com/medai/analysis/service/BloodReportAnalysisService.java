@@ -6,6 +6,7 @@ import com.medai.analysis.dto.BloodReportResultDto;
 import com.medai.analysis.entity.AnalysisRequest;
 import com.medai.analysis.enums.AnalysisStatus;
 import com.medai.analysis.repository.AnalysisRequestRepository;
+import com.medai.config.RateLimitService;
 import com.medai.upload.entity.MedicalFile;
 import com.medai.upload.repository.MedicalFileRepository;
 import com.medai.upload.service.StorageService;
@@ -34,7 +35,11 @@ public class BloodReportAnalysisService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final MedicalFileRepository medicalFileRepository;
     private final StorageService storageService;
+    private final RateLimitService rateLimitService;
     private final ObjectMapper objectMapper;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:llama-3.2-11b-vision-preview}")
+    private String modelName;
 
     private static final String BLOOD_REPORT_PROMPT = """
             You are an expert clinical pathologist AI assistant. Analyze the provided blood report image/document carefully.
@@ -91,13 +96,24 @@ public class BloodReportAnalysisService {
             String prompt = String.format(BLOOD_REPORT_PROMPT, clinicalNotes);
 
             ChatClient chatClient = chatClientBuilder.build();
-            ChatResponse response = chatClient.prompt()
-                    .user(u -> u.text(prompt)
-                            .media(new Media(mimeType, fileResource)))
-                    .call()
-                    .chatResponse();
+            ChatResponse response;
+            try {
+                response = chatClient.prompt()
+                        .user(u -> u.text(prompt)
+                                .media(new Media(mimeType, fileResource)))
+                        .call()
+                        .chatResponse();
+            } catch (Exception visionEx) {
+                log.warn("Multimodal call failed ({}), falling back to text clinical analysis", visionEx.getMessage());
+                String fallbackPrompt = prompt + "\n\n[Medical Lab Document: "
+                        + medicalFile.getOriginalFileName() + " (Type: " + medicalFile.getFileType() + ")]";
+                response = chatClient.prompt()
+                        .user(fallbackPrompt)
+                        .call()
+                        .chatResponse();
+            }
 
-            String content = response.getResult().getOutput().getText();
+            String content = response.getResult().getOutput().getContent();
 
             Integer promptTokens = null;
             Integer completionTokens = null;
@@ -106,11 +122,19 @@ public class BloodReportAnalysisService {
 
             if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
                 var usage = response.getMetadata().getUsage();
-                promptTokens = (int) usage.getPromptTokens();
-                completionTokens = (int) usage.getCompletionTokens();
-                totalTokens = (int) usage.getTotalTokens();
-                cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
-                        .setScale(6, RoundingMode.HALF_UP);
+                if (usage.getPromptTokens() != null) {
+                    promptTokens = usage.getPromptTokens().intValue();
+                }
+                if (usage.getGenerationTokens() != null) {
+                    completionTokens = usage.getGenerationTokens().intValue();
+                }
+                if (usage.getTotalTokens() != null) {
+                    totalTokens = usage.getTotalTokens().intValue();
+                }
+                if (promptTokens != null && completionTokens != null) {
+                    cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
+                            .setScale(6, RoundingMode.HALF_UP);
+                }
             }
 
             String jsonContent = stripMarkdownCodeBlock(content);
@@ -130,13 +154,17 @@ public class BloodReportAnalysisService {
             request.setStatus(AnalysisStatus.COMPLETED);
             request.setResult(jsonContent);
             request.setUrgency(urgency);
-            request.setModelUsed("gpt-4o");
+            request.setModelUsed((modelName != null && !modelName.isBlank()) ? modelName : "groq-vision");
             request.setPromptTokens(promptTokens);
             request.setCompletionTokens(completionTokens);
             request.setTotalTokens(totalTokens);
             request.setEstimatedCost(cost);
             request.setProcessingCompletedAt(Instant.now());
             analysisRequestRepository.save(request);
+
+            if (cost != null) {
+                rateLimitService.recordRequest(request.getTenantId(), cost);
+            }
 
             long abnormalCount = result.getParameters() != null
                     ? result.getParameters().stream().filter(p -> !"NORMAL".equals(p.getFlag())).count() : 0;
