@@ -50,6 +50,13 @@ public class AnalysisRequest extends TenantAwareEntity {
     @Column(name = "model_used")
     private String modelUsed;
 
+    /**
+     * How the input actually reached the model — {@code VISION} (pixels) or {@code TEXT}
+     * (extracted document text). A completed analysis with a null modality predates V7.
+     */
+    @Column(name = "modality_used", length = 20)
+    private String modalityUsed;
+
     @Column(name = "prompt_tokens")
     private Integer promptTokens;
 

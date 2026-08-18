@@ -6,6 +6,9 @@ import com.medai.analysis.dto.AnalysisResultDto;
 import com.medai.analysis.entity.AnalysisRequest;
 import com.medai.analysis.enums.AnalysisStatus;
 import com.medai.analysis.repository.AnalysisRequestRepository;
+import com.medai.analysis.util.AiJsonExtractor;
+import com.medai.analysis.util.AnalysisInputPreparer;
+import com.medai.analysis.util.UnreadableInputException;
 import com.medai.config.RateLimitService;
 import com.medai.upload.entity.MedicalFile;
 import com.medai.upload.repository.MedicalFileRepository;
@@ -15,15 +18,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.model.Media;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.core.io.Resource;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeType;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -37,16 +38,20 @@ public class ImageAnalysisService {
     private final MedicalFileRepository medicalFileRepository;
     private final StorageService storageService;
     private final RateLimitService rateLimitService;
+    private final AnalysisFailureRecorder failureRecorder;
     private final ObjectMapper objectMapper;
 
-    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:llama-3.2-11b-vision-preview}")
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:qwen/qwen3.6-27b}")
     private String modelName;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.max-tokens:4096}")
+    private Integer maxTokens;
 
     private static final String IMAGE_ANALYSIS_PROMPT = """
             You are an expert radiologist AI assistant. Analyze the provided medical image carefully.
-            
+
             Patient clinical notes: %s
-            
+
             Provide your analysis as a JSON object with this exact structure:
             {
               "findings": [
@@ -62,64 +67,88 @@ public class ImageAnalysisService {
               "recommendations": ["recommended follow-up actions"],
               "urgency": "ROUTINE | URGENT | CRITICAL"
             }
-            
+
             Important guidelines:
+            - Base every finding solely on what is visible in the image provided
             - Be thorough but precise in findings
             - Include confidence scores for each finding
             - Provide relevant ICD-10 codes
             - Clearly state urgency level
-            - If the image quality is poor or unreadable, state that clearly
+            - If the image quality is poor or unreadable, say so in the impression, set urgency to
+              ROUTINE, and return a single finding describing the quality problem rather than
+              speculating about anatomy you cannot see
             - Always include at least one finding even if normal
             - Return ONLY valid JSON, no markdown or extra text
             """;
 
-    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000, multiplier = 2))
+    /**
+     * Analyses a medical image.
+     *
+     * <p>The image must reach the model as pixels. If it cannot be decoded, or the model call
+     * fails, the analysis is failed with a specific reason — it is never answered from the
+     * filename, which would produce fabricated radiological findings indistinguishable from
+     * real ones.
+     */
     public AnalysisResultDto analyzeImage(UUID analysisRequestId) {
         AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId)
-                .orElseThrow(() -> new RuntimeException("Analysis request not found: " + analysisRequestId));
+                .orElseThrow(() -> new IllegalStateException("Analysis request not found: " + analysisRequestId));
 
         MedicalFile medicalFile = medicalFileRepository.findById(request.getMedicalFileId())
-                .orElseThrow(() -> new RuntimeException("Medical file not found: " + request.getMedicalFileId()));
+                .orElseThrow(() -> new IllegalStateException("Medical file not found: " + request.getMedicalFileId()));
 
-        // Update status to PROCESSING
         request.setStatus(AnalysisStatus.PROCESSING);
         request.setProcessingStartedAt(Instant.now());
         analysisRequestRepository.save(request);
 
+        AnalysisInputPreparer.PreparedInput prepared;
         try {
-            // Load the image from storage
-            Resource imageResource = storageService.retrieveAsResource(medicalFile.getStoragePath());
-            MimeType mimeType = MimeType.valueOf(medicalFile.getMimeType() != null
-                    ? medicalFile.getMimeType() : "image/jpeg");
+            Resource stored = storageService.retrieveAsResource(medicalFile.getStoragePath());
+            MimeType declaredMime = MimeType.valueOf(medicalFile.getMimeType() != null
+                    ? medicalFile.getMimeType() : "application/octet-stream");
+            prepared = AnalysisInputPreparer.prepare(stored, declaredMime, medicalFile.getOriginalFileName());
 
+            // An image study analysed from a text layer would be a report about a report.
+            if (!prepared.isVision()) {
+                throw new UnreadableInputException(
+                        "Image analysis requires a readable image. '" + medicalFile.getOriginalFileName()
+                        + "' yielded only text — use blood report analysis for text documents.");
+            }
+        } catch (UnreadableInputException e) {
+            failureRecorder.recordTerminal(request, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            failureRecorder.recordTerminal(request, "Could not read the stored file: " + e.getMessage());
+            throw new UnreadableInputException("Could not read the stored file for analysis " + analysisRequestId, e);
+        }
+
+        try {
             String clinicalNotes = request.getClinicalNotes() != null
                     ? request.getClinicalNotes() : "No additional clinical notes provided.";
 
-            String prompt = String.format(IMAGE_ANALYSIS_PROMPT, clinicalNotes);
+            // /no_think disables the Qwen reasoning model's <think> chain-of-thought, so the
+            // response is the JSON answer directly (also saves output tokens under the TPM cap).
+            String prompt = String.format(IMAGE_ANALYSIS_PROMPT, clinicalNotes) + "\n\n/no_think";
 
-            // Call AI (try multimodal vision first; fallback to text prompt if model only supports text)
-            ChatClient chatClient = chatClientBuilder.build();
-            ChatResponse response;
-            try {
-                response = chatClient.prompt()
-                        .user(u -> u.text(prompt)
-                                .media(new Media(mimeType, imageResource)))
-                        .call()
-                        .chatResponse();
-            } catch (Exception visionEx) {
-                log.warn("Multimodal vision call failed ({}), falling back to text clinical analysis", visionEx.getMessage());
-                String fallbackPrompt = prompt + "\n\n[Medical Image Study Information: "
-                        + medicalFile.getOriginalFileName() + " (Type: " + medicalFile.getFileType() + ")]";
-                response = chatClient.prompt()
-                        .user(fallbackPrompt)
-                        .call()
-                        .chatResponse();
-            }
+            // Force JSON-object output so the (reasoning) model returns structured JSON as its
+            // content rather than a free-form <think> chain-of-thought.
+            OpenAiChatOptions jsonOptions = OpenAiChatOptions.builder()
+                    .withModel(modelName)
+                    .withMaxTokens(maxTokens)
+                    .withResponseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
+                    .build();
+
+            Media[] media = prepared.images().stream()
+                    .map(image -> new Media(prepared.mimeType(), image))
+                    .toArray(Media[]::new);
+
+            ChatResponse response = chatClientBuilder.build().prompt()
+                    .options(jsonOptions)
+                    .user(u -> u.text(prompt).media(media))
+                    .call()
+                    .chatResponse();
 
             String content = response.getResult().getOutput().getContent();
-            String modelUsed = (modelName != null && !modelName.isBlank()) ? modelName : "groq-vision";
 
-            // Parse usage
             Integer promptTokens = null;
             Integer completionTokens = null;
             Integer totalTokens = null;
@@ -136,71 +165,61 @@ public class ImageAnalysisService {
                 if (usage.getTotalTokens() != null) {
                     totalTokens = usage.getTotalTokens().intValue();
                 }
-                if (promptTokens != null && completionTokens != null) {
-                    cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
-                            .setScale(6, RoundingMode.HALF_UP);
-                }
+                // Priced from the model that actually ran, not a hardcoded GPT-4o rate.
+                cost = rateLimitService.estimateCost(modelName, promptTokens, completionTokens);
             }
 
-            // Clean JSON response (strip markdown code blocks if present)
-            String jsonContent = content.strip();
-            if (jsonContent.startsWith("```json")) {
-                jsonContent = jsonContent.substring(7);
-            } else if (jsonContent.startsWith("```")) {
-                jsonContent = jsonContent.substring(3);
-            }
-            if (jsonContent.endsWith("```")) {
-                jsonContent = jsonContent.substring(0, jsonContent.length() - 3);
-            }
-            jsonContent = jsonContent.strip();
+            // Extract the JSON object (tolerates markdown fences, prose, or reasoning preambles)
+            String jsonContent = AiJsonExtractor.extractJsonObject(content);
 
-            AnalysisResultDto result = objectMapper.readValue(jsonContent, AnalysisResultDto.class);
+            AnalysisResultDto result;
+            try {
+                result = objectMapper.readValue(jsonContent, AnalysisResultDto.class);
+            } catch (JsonProcessingException pe) {
+                log.warn("Failed to parse AI response for request {} (completionTokens={}). Raw content (first 3000 chars): {}",
+                        analysisRequestId, completionTokens,
+                        content.length() > 3000 ? content.substring(0, 3000) + "…[truncated]" : content);
+                throw pe;
+            }
+            // Persist canonical JSON (re-serialized from the DTO) so the JSONB column never
+            // receives trailing prose/backticks the model may have appended after the object.
+            String canonicalJson = objectMapper.writeValueAsString(result);
 
-            // Update the analysis request
             request.setStatus(AnalysisStatus.COMPLETED);
-            request.setResult(jsonContent);
+            request.setResult(canonicalJson);
             request.setUrgency(result.getUrgency());
-            request.setModelUsed(modelUsed);
+            request.setModelUsed(modelName);
+            request.setModalityUsed(prepared.modality().name());
             request.setPromptTokens(promptTokens);
             request.setCompletionTokens(completionTokens);
             request.setTotalTokens(totalTokens);
             request.setEstimatedCost(cost);
+            request.setErrorMessage(null);
             request.setProcessingCompletedAt(Instant.now());
             analysisRequestRepository.save(request);
 
-            if (cost != null) {
-                rateLimitService.recordRequest(request.getTenantId(), cost);
-            }
+            rateLimitService.recordUsage(request.getTenantId(), modelName, promptTokens, completionTokens);
 
-            log.info("Analysis completed for request {} — urgency={}, findings={}, tokens={}",
-                    analysisRequestId, result.getUrgency(),
+            log.info("Analysis completed for request {} — modality={}, images={}, urgency={}, findings={}, tokens={}",
+                    analysisRequestId, prepared.modality(), media.length, result.getUrgency(),
                     result.getFindings() != null ? result.getFindings().size() : 0, totalTokens);
 
             return result;
 
         } catch (JsonProcessingException e) {
-            handleFailure(request, "Failed to parse AI response: " + e.getMessage());
-            throw new RuntimeException("Failed to parse analysis result", e);
-        } catch (IOException e) {
-            handleFailure(request, "Failed to read image file: " + e.getMessage());
-            throw new RuntimeException("Failed to read image for analysis", e);
+            failureRecorder.recordTransient(request, "The model returned a response that could not be parsed as JSON: "
+                                                     + e.getOriginalMessage());
+            throw new IllegalStateException("Failed to parse analysis result", e);
         } catch (Exception e) {
-            handleFailure(request, e.getMessage());
-            throw new RuntimeException("Analysis failed: " + e.getMessage(), e);
+            failureRecorder.recordTransient(request, describe(e));
+            throw new IllegalStateException("Image analysis failed: " + e.getMessage(), e);
         }
     }
 
-    private void handleFailure(AnalysisRequest request, String errorMessage) {
-        request.setRetryCount(request.getRetryCount() + 1);
-        if (request.getRetryCount() >= request.getMaxRetries()) {
-            request.setStatus(AnalysisStatus.FAILED);
-        } else {
-            request.setStatus(AnalysisStatus.PENDING);
-        }
-        request.setErrorMessage(errorMessage);
-        request.setProcessingCompletedAt(Instant.now());
-        analysisRequestRepository.save(request);
-        log.error("Analysis failed for request {} (retry {}/{}): {}",
-                request.getId(), request.getRetryCount(), request.getMaxRetries(), errorMessage);
+    private static String describe(Exception e) {
+        String message = e.getMessage();
+        return (message != null && !message.isBlank())
+                ? message
+                : e.getClass().getSimpleName() + " during image analysis";
     }
 }

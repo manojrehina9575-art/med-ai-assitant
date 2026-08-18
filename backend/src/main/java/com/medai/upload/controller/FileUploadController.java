@@ -41,6 +41,7 @@ public class FileUploadController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR', 'LAB_TECH')")
     public ResponseEntity<ApiResponse<PagedResponse<FileUploadResponse>>> listFiles(
             @PathVariable UUID patientId,
             @RequestParam(defaultValue = "0") int page,
@@ -49,10 +50,11 @@ public class FileUploadController {
     }
 
     @GetMapping("/{fileId}/download")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR', 'LAB_TECH')")
     public ResponseEntity<InputStreamResource> downloadFile(
             @PathVariable UUID patientId,
             @PathVariable UUID fileId) {
-        MedicalFile medicalFile = fileUploadService.getFile(fileId);
+        MedicalFile medicalFile = fileUploadService.getFile(patientId, fileId);
         InputStream inputStream = storageService.retrieve(medicalFile.getStoragePath());
 
         return ResponseEntity.ok()
@@ -63,15 +65,17 @@ public class FileUploadController {
     }
 
     @GetMapping("/{fileId}/view")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR', 'LAB_TECH')")
     public ResponseEntity<InputStreamResource> viewFile(
             @PathVariable UUID patientId,
             @PathVariable UUID fileId) {
-        MedicalFile medicalFile = fileUploadService.getFile(fileId);
+        MedicalFile medicalFile = fileUploadService.getFile(patientId, fileId);
         InputStream inputStream = storageService.retrieve(medicalFile.getStoragePath());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + medicalFile.getOriginalFileName() + "\"")
-                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                // Patient files are private; a shared cache must never retain them.
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600, no-store")
                 .contentType(MediaType.parseMediaType(medicalFile.getMimeType()))
                 .contentLength(medicalFile.getFileSizeBytes())
                 .body(new InputStreamResource(inputStream));
@@ -82,7 +86,7 @@ public class FileUploadController {
     public ResponseEntity<ApiResponse<Void>> deleteFile(
             @PathVariable UUID patientId,
             @PathVariable UUID fileId) {
-        fileUploadService.deleteFile(fileId);
+        fileUploadService.deleteFile(patientId, fileId);
         return ResponseEntity.ok(ApiResponse.success("File deleted", null));
     }
 }

@@ -4,22 +4,28 @@ import com.medai.common.exception.RateLimitExceededException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * In-memory per-tenant rate limiter for AI analysis endpoints.
- * Tracks both request count (per minute) and estimated cost (per day).
+ * Per-tenant limits on AI analysis: a request rate and a daily spend cap.
  *
- * <p>Note: This is a single-node in-memory implementation suitable for MVP.
- * For production with multiple instances, replace with Redis-based rate limiting.
+ * <p>Spend is held in the database ({@code tenant_ai_usage_daily}), so the cap survives a restart
+ * and is shared by every instance. It used to live in a map, which meant a restart handed every
+ * tenant a fresh budget and a second instance doubled the ceiling.
+ *
+ * <p>The request-per-minute window is still in memory, and therefore still per-instance. That is a
+ * deliberate trade: it is a burst guard rather than a spend control, and making it correct across
+ * instances needs Redis. The spend cap — the one that costs money to get wrong — is authoritative.
  */
 @Service
 @RequiredArgsConstructor
@@ -27,41 +33,48 @@ import java.util.concurrent.atomic.AtomicReference;
 public class RateLimitService {
 
     private final RateLimitConfig config;
+    private final ModelPricing modelPricing;
+    private final TenantAiUsageRepository usageRepository;
 
-    // Tenant request tracking: tenantId -> (windowStart, count)
     private final Map<UUID, RateWindow> requestWindows = new ConcurrentHashMap<>();
 
-    // Tenant cost tracking: tenantId -> (dayStart, totalCost)
-    private final Map<UUID, CostWindow> costWindows = new ConcurrentHashMap<>();
-
-    /**
-     * Check if the tenant is within rate limits before processing an AI request.
-     *
-     * @throws RateLimitExceededException if limits are exceeded
-     */
+    /** @throws RateLimitExceededException if the tenant is over either limit */
     public void checkRateLimit(UUID tenantId) {
         checkRequestLimit(tenantId);
         checkCostLimit(tenantId);
     }
 
     /**
-     * Record a completed AI request and its estimated cost.
+     * Records a completed AI call against the tenant's daily totals.
+     *
+     * <p>Runs in its own transaction so that recording usage cannot roll back with — or roll back —
+     * the analysis that produced it.
      */
-    public void recordRequest(UUID tenantId, BigDecimal estimatedCost) {
-        if (estimatedCost != null && estimatedCost.compareTo(BigDecimal.ZERO) > 0) {
-            CostWindow window = costWindows.computeIfAbsent(tenantId,
-                    k -> new CostWindow(Instant.now().truncatedTo(ChronoUnit.DAYS)));
-            window.addCost(estimatedCost.doubleValue());
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordUsage(UUID tenantId, String modelId, Integer promptTokens, Integer completionTokens) {
+        BigDecimal cost = modelPricing.estimate(modelId, promptTokens, completionTokens);
+        try {
+            usageRepository.addUsage(
+                    tenantId,
+                    today(),
+                    promptTokens != null ? promptTokens : 0L,
+                    completionTokens != null ? completionTokens : 0L,
+                    cost);
+        } catch (Exception e) {
+            log.error("Could not record AI usage for tenant {} (model={}, cost={}): {}",
+                    tenantId, modelId, cost, e.getMessage());
         }
+    }
+
+    /** Cost of a call, for storing on the analysis row. */
+    public BigDecimal estimateCost(String modelId, Integer promptTokens, Integer completionTokens) {
+        return modelPricing.estimate(modelId, promptTokens, completionTokens);
     }
 
     private void checkRequestLimit(UUID tenantId) {
         RateWindow window = requestWindows.compute(tenantId, (k, existing) -> {
             Instant now = Instant.now();
-            if (existing == null || existing.isExpired(now)) {
-                return new RateWindow(now);
-            }
-            return existing;
+            return (existing == null || existing.isExpired(now)) ? new RateWindow(now) : existing;
         });
 
         int count = window.incrementAndGet();
@@ -69,36 +82,43 @@ public class RateLimitService {
             log.warn("Rate limit exceeded for tenant {} ({} requests/min, limit: {})",
                     tenantId, count, config.getMaxRequestsPerMinute());
             throw new RateLimitExceededException(
-                    "AI analysis rate limit exceeded. Maximum " + config.getMaxRequestsPerMinute() +
-                    " requests per minute. Please try again shortly.");
+                    "AI analysis rate limit exceeded. Maximum " + config.getMaxRequestsPerMinute()
+                    + " requests per minute. Please try again shortly.");
         }
     }
 
     private void checkCostLimit(UUID tenantId) {
-        CostWindow window = costWindows.get(tenantId);
-        if (window == null) return;
-
-        Instant today = Instant.now().truncatedTo(ChronoUnit.DAYS);
-        if (!window.dayStart.equals(today)) {
-            // New day — reset
-            costWindows.put(tenantId, new CostWindow(today));
+        BigDecimal spentToday;
+        try {
+            spentToday = usageRepository.findCostForDay(tenantId, today());
+        } catch (Exception e) {
+            // Fail open on a read error: refusing every analysis because a usage lookup failed is
+            // worse than briefly not enforcing a soft budget. The failure is logged loudly.
+            log.error("Could not read today's AI spend for tenant {}; allowing the request: {}",
+                    tenantId, e.getMessage());
             return;
         }
 
-        if (window.getTotalCost() >= config.getMaxCostPerDayUsd()) {
-            log.warn("Daily cost limit exceeded for tenant {} (${}, limit: ${})",
-                    tenantId, String.format("%.2f", window.getTotalCost()), config.getMaxCostPerDayUsd());
+        if (spentToday == null) {
+            return;
+        }
+
+        BigDecimal limit = BigDecimal.valueOf(config.getMaxCostPerDayUsd());
+        if (spentToday.compareTo(limit) >= 0) {
+            log.warn("Daily cost limit reached for tenant {} (${} of ${})", tenantId, spentToday, limit);
             throw new RateLimitExceededException(
-                    "Daily AI analysis cost limit exceeded ($" +
-                    String.format("%.2f", config.getMaxCostPerDayUsd()) +
-                    "). Contact your administrator to increase the limit.");
+                    "Daily AI analysis cost limit of $" + String.format("%.2f", config.getMaxCostPerDayUsd())
+                    + " reached. Contact your administrator to increase the limit.");
         }
     }
 
-    /**
-     * Sliding window for request count (1-minute window).
-     */
-    private static class RateWindow {
+    /** Days roll over at UTC midnight, matching the DATE column the totals are keyed by. */
+    private LocalDate today() {
+        return LocalDate.now(ZoneOffset.UTC);
+    }
+
+    /** Fixed one-minute window for request count. */
+    private static final class RateWindow {
         private final Instant windowStart;
         private final AtomicInteger count = new AtomicInteger(0);
 
@@ -112,26 +132,6 @@ public class RateLimitService {
 
         int incrementAndGet() {
             return count.incrementAndGet();
-        }
-    }
-
-    /**
-     * Daily cost window for tracking estimated USD spend per tenant.
-     */
-    private static class CostWindow {
-        private final Instant dayStart;
-        private final AtomicReference<Double> totalCost = new AtomicReference<>(0.0);
-
-        CostWindow(Instant dayStart) {
-            this.dayStart = dayStart;
-        }
-
-        void addCost(double cost) {
-            totalCost.updateAndGet(current -> current + cost);
-        }
-
-        double getTotalCost() {
-            return totalCost.get();
         }
     }
 }

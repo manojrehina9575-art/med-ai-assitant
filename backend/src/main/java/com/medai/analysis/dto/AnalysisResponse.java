@@ -23,6 +23,7 @@ public class AnalysisResponse {
     private String rawResult;
     private String errorMessage;
     private String modelUsed;
+    private String modalityUsed;
     private Integer promptTokens;
     private Integer completionTokens;
     private Integer totalTokens;

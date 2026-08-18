@@ -55,11 +55,16 @@ public class DocumentIngestionService {
         doc.setFileName(file.getOriginalFilename());
         doc.setFileSizeBytes(file.getSize());
         doc.setMimeType(file.getContentType());
-        doc.setCreatedBy(principal.id());
+        doc.setCreatedBy(principal.userId());
         doc.setStatus(DocumentStatus.PROCESSING);
 
         // Store file
-        String storagePath = storageService.store(file, principal.tenantId(), UUID.randomUUID());
+        String storagePath = storageService.store(
+                principal.tenantId(),
+                UUID.randomUUID(),
+                file.getOriginalFilename(),
+                file
+        );
         doc.setStoragePath(storagePath);
 
         doc = documentRepository.save(doc);
@@ -87,6 +92,7 @@ public class DocumentIngestionService {
                 chunk.setChunkIndex(i);
                 chunk.setContent(chunkContent);
                 chunk.setEmbedding(vectorStr);
+                chunk.setEmbeddingModel(embeddingService.modelId());
                 chunk.setMetadata(String.format("{\"chunk\":%d,\"doc_title\":\"%s\"}", i, doc.getTitle()));
 
                 chunkRepository.save(chunk);

@@ -3,6 +3,7 @@ package com.medai.auth.controller;
 import com.medai.auth.dto.*;
 import com.medai.auth.service.AuthService;
 import com.medai.common.dto.ApiResponse;
+import com.medai.common.exception.ResourceNotFoundException;
 import com.medai.tenant.entity.Tenant;
 import com.medai.tenant.repository.TenantRepository;
 import jakarta.validation.Valid;
@@ -12,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -55,17 +55,25 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Token refreshed", response));
     }
 
+    /**
+     * Resolves a single hospital by its subdomain, for the login form.
+     *
+     * <p>This used to return every tenant on the platform to anyone who asked — a public list of
+     * your customers, and a ready-made target list for credential stuffing. A caller must now know
+     * the subdomain, which they do: it is what their hospital gave them.
+     */
     @GetMapping("/tenants")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listTenants() {
-        List<Tenant> tenants = tenantRepository.findAll();
-        List<Map<String, Object>> result = tenants.stream()
+    public ResponseEntity<ApiResponse<Map<String, Object>>> findTenant(
+            @RequestParam String subdomain) {
+        Tenant tenant = tenantRepository.findBySubdomain(subdomain.trim().toLowerCase())
                 .filter(Tenant::getIsActive)
-                .map(t -> Map.<String, Object>of(
-                        "id", t.getId(),
-                        "name", t.getName(),
-                        "subdomain", t.getSubdomain()
-                ))
-                .toList();
-        return ResponseEntity.ok(ApiResponse.success(result));
+                // Deliberately the same response for "no such hospital" and "deactivated", so the
+                // endpoint cannot be used to enumerate which subdomains exist.
+                .orElseThrow(() -> new ResourceNotFoundException("Hospital", "subdomain", subdomain));
+
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "id", tenant.getId(),
+                "name", tenant.getName(),
+                "subdomain", tenant.getSubdomain())));
     }
 }

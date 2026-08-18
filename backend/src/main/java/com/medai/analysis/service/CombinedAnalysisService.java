@@ -2,13 +2,14 @@ package com.medai.analysis.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medai.analysis.dto.AnalysisResultDto;
-import com.medai.analysis.dto.BloodReportResultDto;
 import com.medai.analysis.dto.CombinedAnalysisResultDto;
 import com.medai.analysis.entity.AnalysisRequest;
 import com.medai.analysis.enums.AnalysisStatus;
 import com.medai.analysis.enums.AnalysisType;
 import com.medai.analysis.repository.AnalysisRequestRepository;
+import com.medai.analysis.util.AiJsonExtractor;
+import com.medai.analysis.util.AnalysisInputPreparer;
+import com.medai.analysis.util.UnreadableInputException;
 import com.medai.config.RateLimitService;
 import com.medai.patient.entity.Patient;
 import com.medai.patient.repository.PatientRepository;
@@ -16,12 +17,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -35,26 +36,33 @@ public class CombinedAnalysisService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final PatientRepository patientRepository;
     private final RateLimitService rateLimitService;
+    private final AnalysisFailureRecorder failureRecorder;
     private final ObjectMapper objectMapper;
 
-    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:llama-3.2-11b-vision-preview}")
+    /** How many of the patient's most recent completed analyses to correlate. */
+    private static final int SOURCE_ANALYSIS_LIMIT = 20;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:qwen/qwen3.6-27b}")
     private String modelName;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.max-tokens:4096}")
+    private Integer maxTokens;
 
     private static final String COMBINED_ANALYSIS_PROMPT = """
             You are a senior diagnostic physician AI assistant. You have been provided with multiple analysis results
             for the same patient. Combine the imaging findings and blood report results to provide a unified diagnostic assessment.
-            
+
             Patient Information:
             %s
-            
+
             Clinical Notes: %s
-            
+
             Previous Image Analysis Results:
             %s
-            
+
             Previous Blood Report Results:
             %s
-            
+
             Provide a combined diagnostic assessment as a JSON object with this exact structure:
             {
               "overallAssessment": "comprehensive summary combining all findings",
@@ -72,8 +80,12 @@ public class CombinedAnalysisService {
               "urgency": "ROUTINE | URGENT | CRITICAL",
               "confidenceScore": 0.0 to 1.0
             }
-            
+
             Important guidelines:
+            - Every diagnosis and every item of supporting evidence must trace back to a finding or lab
+              value present in the results above. Do not introduce findings that are not there.
+            - If only one modality is available, say so in the clinical correlation and lower the
+              confidence score accordingly rather than implying corroboration you do not have.
             - Cross-reference imaging findings with lab values
             - Identify patterns across both modalities
             - Highlight any discrepancies between image and lab findings
@@ -83,47 +95,76 @@ public class CombinedAnalysisService {
             - Return ONLY valid JSON, no markdown or extra text
             """;
 
-    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000, multiplier = 2))
+    /**
+     * Correlates the patient's existing completed analyses into a unified assessment.
+     *
+     * <p>This is a text-only reasoning step over results produced earlier — it reads no image
+     * itself. If the patient has no completed image or blood report analyses, there is nothing to
+     * correlate and the request fails; previously the prompt said "no results available" and the
+     * model answered anyway, producing a confident assessment built from nothing.
+     */
     public CombinedAnalysisResultDto analyzeCombined(UUID analysisRequestId) {
         AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId)
-                .orElseThrow(() -> new RuntimeException("Analysis request not found: " + analysisRequestId));
+                .orElseThrow(() -> new IllegalStateException("Analysis request not found: " + analysisRequestId));
 
         request.setStatus(AnalysisStatus.PROCESSING);
         request.setProcessingStartedAt(Instant.now());
         analysisRequestRepository.save(request);
 
+        String patientInfo;
+        String imageResults;
+        String bloodResults;
         try {
-            // Get patient info
             Patient patient = patientRepository.findById(request.getPatientId())
-                    .orElseThrow(() -> new RuntimeException("Patient not found"));
-            String patientInfo = formatPatientInfo(patient);
+                    .orElseThrow(() -> new IllegalStateException("Patient not found: " + request.getPatientId()));
+            patientInfo = formatPatientInfo(patient);
 
-            // Get previous analyses for this patient
-            List<AnalysisRequest> previousAnalyses = analysisRequestRepository
-                    .findByTenantIdAndMedicalFileId(request.getTenantId(), request.getMedicalFileId())
-                    .stream()
-                    .filter(a -> a.getStatus() == AnalysisStatus.COMPLETED && !a.getId().equals(request.getId()))
-                    .toList();
-
-            // Also get all completed analyses for the patient
-            var allPatientAnalyses = analysisRequestRepository
+            List<AnalysisRequest> sources = analysisRequestRepository
                     .findByTenantIdAndPatientIdOrderByCreatedAtDesc(request.getTenantId(), request.getPatientId(),
-                            org.springframework.data.domain.PageRequest.of(0, 20))
+                            PageRequest.of(0, SOURCE_ANALYSIS_LIMIT))
                     .getContent()
                     .stream()
-                    .filter(a -> a.getStatus() == AnalysisStatus.COMPLETED && !a.getId().equals(request.getId()))
+                    .filter(a -> a.getStatus() == AnalysisStatus.COMPLETED)
+                    .filter(a -> a.getResult() != null)
+                    .filter(a -> !a.getId().equals(request.getId()))
+                    .filter(a -> a.getAnalysisType() != AnalysisType.COMBINED)
                     .toList();
 
-            String imageResults = formatAnalysisByType(allPatientAnalyses, AnalysisType.IMAGE_ANALYSIS);
-            String bloodResults = formatAnalysisByType(allPatientAnalyses, AnalysisType.BLOOD_REPORT);
+            if (sources.isEmpty()) {
+                throw new UnreadableInputException(
+                        "Combined analysis needs at least one completed image or blood report analysis for this "
+                        + "patient to correlate. Run an image or blood report analysis first.");
+            }
 
+            imageResults = formatAnalysisByType(sources, AnalysisType.IMAGE_ANALYSIS);
+            bloodResults = formatAnalysisByType(sources, AnalysisType.BLOOD_REPORT);
+
+            log.info("Combined analysis {} correlating {} source analysis result(s)",
+                    analysisRequestId, sources.size());
+
+        } catch (UnreadableInputException e) {
+            failureRecorder.recordTerminal(request, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            failureRecorder.recordTerminal(request, "Could not assemble the source analyses: " + e.getMessage());
+            throw new IllegalStateException("Could not assemble source analyses for " + analysisRequestId, e);
+        }
+
+        try {
             String clinicalNotes = request.getClinicalNotes() != null
                     ? request.getClinicalNotes() : "No additional clinical notes.";
 
-            String prompt = String.format(COMBINED_ANALYSIS_PROMPT, patientInfo, clinicalNotes, imageResults, bloodResults);
+            String prompt = String.format(COMBINED_ANALYSIS_PROMPT, patientInfo, clinicalNotes, imageResults, bloodResults)
+                    + "\n\n/no_think";
 
-            ChatClient chatClient = chatClientBuilder.build();
-            ChatResponse response = chatClient.prompt()
+            OpenAiChatOptions jsonOptions = OpenAiChatOptions.builder()
+                    .withModel(modelName)
+                    .withMaxTokens(maxTokens)
+                    .withResponseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
+                    .build();
+
+            ChatResponse response = chatClientBuilder.build().prompt()
+                    .options(jsonOptions)
                     .user(prompt)
                     .call()
                     .chatResponse();
@@ -146,29 +187,30 @@ public class CombinedAnalysisService {
                 if (usage.getTotalTokens() != null) {
                     totalTokens = usage.getTotalTokens().intValue();
                 }
-                if (promptTokens != null && completionTokens != null) {
-                    cost = BigDecimal.valueOf(promptTokens * 2.50 / 1_000_000 + completionTokens * 10.0 / 1_000_000)
-                            .setScale(6, RoundingMode.HALF_UP);
-                }
+                // Priced from the model that actually ran, not a hardcoded GPT-4o rate.
+                cost = rateLimitService.estimateCost(modelName, promptTokens, completionTokens);
             }
 
-            String jsonContent = stripMarkdownCodeBlock(content);
+            String jsonContent = AiJsonExtractor.extractJsonObject(content);
             CombinedAnalysisResultDto result = objectMapper.readValue(jsonContent, CombinedAnalysisResultDto.class);
+            // Persist canonical JSON so the JSONB column never receives trailing prose/backticks.
+            String canonicalJson = objectMapper.writeValueAsString(result);
 
             request.setStatus(AnalysisStatus.COMPLETED);
-            request.setResult(jsonContent);
+            request.setResult(canonicalJson);
             request.setUrgency(result.getUrgency());
-            request.setModelUsed((modelName != null && !modelName.isBlank()) ? modelName : "groq-vision");
+            request.setModelUsed(modelName);
+            // Correlation reasons over previously extracted results, never over pixels.
+            request.setModalityUsed(AnalysisInputPreparer.Modality.TEXT.name());
             request.setPromptTokens(promptTokens);
             request.setCompletionTokens(completionTokens);
             request.setTotalTokens(totalTokens);
             request.setEstimatedCost(cost);
+            request.setErrorMessage(null);
             request.setProcessingCompletedAt(Instant.now());
             analysisRequestRepository.save(request);
 
-            if (cost != null) {
-                rateLimitService.recordRequest(request.getTenantId(), cost);
-            }
+            rateLimitService.recordUsage(request.getTenantId(), modelName, promptTokens, completionTokens);
 
             log.info("Combined analysis completed for request {} — urgency={}, diagnoses={}, confidence={}, tokens={}",
                     analysisRequestId, result.getUrgency(),
@@ -178,11 +220,12 @@ public class CombinedAnalysisService {
             return result;
 
         } catch (JsonProcessingException e) {
-            handleFailure(request, "Failed to parse AI response: " + e.getMessage());
-            throw new RuntimeException("Failed to parse combined analysis result", e);
+            failureRecorder.recordTransient(request, "The model returned a response that could not be parsed as JSON: "
+                                                     + e.getOriginalMessage());
+            throw new IllegalStateException("Failed to parse combined analysis result", e);
         } catch (Exception e) {
-            handleFailure(request, e.getMessage());
-            throw new RuntimeException("Combined analysis failed: " + e.getMessage(), e);
+            failureRecorder.recordTransient(request, describe(e));
+            throw new IllegalStateException("Combined analysis failed: " + e.getMessage(), e);
         }
     }
 
@@ -203,32 +246,19 @@ public class CombinedAnalysisService {
 
     private String formatAnalysisByType(List<AnalysisRequest> analyses, AnalysisType type) {
         List<String> results = analyses.stream()
-                .filter(a -> a.getAnalysisType() == type && a.getResult() != null)
-                .map(a -> a.getResult())
+                .filter(a -> a.getAnalysisType() == type)
+                .map(AnalysisRequest::getResult)
                 .toList();
-        if (results.isEmpty()) return "No " + type.name().toLowerCase().replace('_', ' ') + " results available.";
+        if (results.isEmpty()) {
+            return "None on record for this patient — do not infer findings for this modality.";
+        }
         return String.join("\n---\n", results);
     }
 
-    private String stripMarkdownCodeBlock(String content) {
-        String stripped = content.strip();
-        if (stripped.startsWith("```json")) stripped = stripped.substring(7);
-        else if (stripped.startsWith("```")) stripped = stripped.substring(3);
-        if (stripped.endsWith("```")) stripped = stripped.substring(0, stripped.length() - 3);
-        return stripped.strip();
-    }
-
-    private void handleFailure(AnalysisRequest request, String errorMessage) {
-        request.setRetryCount(request.getRetryCount() + 1);
-        if (request.getRetryCount() >= request.getMaxRetries()) {
-            request.setStatus(AnalysisStatus.FAILED);
-        } else {
-            request.setStatus(AnalysisStatus.PENDING);
-        }
-        request.setErrorMessage(errorMessage);
-        request.setProcessingCompletedAt(Instant.now());
-        analysisRequestRepository.save(request);
-        log.error("Combined analysis failed for request {} (retry {}/{}): {}",
-                request.getId(), request.getRetryCount(), request.getMaxRetries(), errorMessage);
+    private static String describe(Exception e) {
+        String message = e.getMessage();
+        return (message != null && !message.isBlank())
+                ? message
+                : e.getClass().getSimpleName() + " during combined analysis";
     }
 }

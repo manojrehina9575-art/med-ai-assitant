@@ -26,6 +26,10 @@ public class DocumentChunk extends TenantAwareEntity {
     @Column(name = "metadata", columnDefinition = "JSONB")
     private String metadata;
 
-    @Column(name = "embedding", columnDefinition = "vector(1536)")
+    @Column(name = "embedding", columnDefinition = "vector(384)")
     private String embedding;
+
+    /** Model that produced {@link #embedding}; see V8 for why this is tracked. */
+    @Column(name = "embedding_model", length = 100)
+    private String embeddingModel;
 }

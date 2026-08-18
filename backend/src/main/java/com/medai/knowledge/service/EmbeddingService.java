@@ -1,99 +1,86 @@
 package com.medai.knowledge.service;
 
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.transformers.TransformersEmbeddingModel;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
+import java.util.Locale;
 
+/**
+ * Produces semantic embeddings for knowledge-base text.
+ *
+ * <p>This replaces a hash-based implementation that projected SHA-256 hashes of words, bigrams,
+ * and character trigrams into a 1536-dimensional vector. That produced a well-formed vector, but
+ * cosine distance between two such vectors measures literal token overlap rather than meaning — a
+ * query about "metformin in CKD stage 4" could not retrieve a chunk about "dosing in renal
+ * impairment", because none of the hashed tokens coincide. Every citation the UI showed, with its
+ * confident similarity score, was close to arbitrary.
+ *
+ * <p>Embeddings now come from a sentence-transformer model running in-process via ONNX Runtime.
+ * Nothing is sent to a third party, and there is no per-token cost.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class EmbeddingService {
 
-    public static final int EMBEDDING_DIMENSION = 1536;
+    /**
+     * Dimension of the configured model's output. Must match the {@code vector(n)} column in
+     * {@code document_chunks} — see V8. all-MiniLM-L6-v2 emits 384 dimensions.
+     */
+    public static final int EMBEDDING_DIMENSION = 384;
+
+    private final TransformersEmbeddingModel embeddingModel;
 
     /**
-     * Generates a 1536-dimensional vector for text.
-     * Uses feature hashing and character n-gram projection to generate dense, normalized semantic vectors.
+     * Recorded on every chunk so a future model change can be detected rather than silently
+     * mixing incompatible vector spaces in one index.
      */
+    @Value("${app.knowledge.embedding-model-id:all-MiniLM-L6-v2}")
+    private String modelId;
+
+    /**
+     * Fails startup rather than letting a model whose output does not match the database column
+     * write vectors that would be rejected — or worse, silently truncated — at insert time.
+     */
+    @PostConstruct
+    void verifyDimension() {
+        int actual = embeddingModel.embed("dimension probe").length;
+        if (actual != EMBEDDING_DIMENSION) {
+            throw new IllegalStateException(
+                    "Embedding model '" + modelId + "' produces " + actual + " dimensions, but document_chunks.embedding "
+                    + "is vector(" + EMBEDDING_DIMENSION + "). Update EMBEDDING_DIMENSION and add a migration that "
+                    + "alters the column and re-embeds every chunk.");
+        }
+        log.info("Embedding model '{}' ready — {} dimensions, running locally", modelId, actual);
+    }
+
+    public String modelId() {
+        return modelId;
+    }
+
+    /** Embeds a single passage or query. */
     public float[] embedText(String text) {
         if (text == null || text.isBlank()) {
-            float[] zeros = new float[EMBEDDING_DIMENSION];
-            return zeros;
+            throw new IllegalArgumentException("Cannot embed empty text");
         }
-
-        float[] vector = new float[EMBEDDING_DIMENSION];
-        String cleaned = text.toLowerCase().trim();
-        String[] words = cleaned.split("\\s+");
-
-        // Unigrams & Bigrams projection
-        for (int i = 0; i < words.length; i++) {
-            String word = words[i];
-            hashAndAccumulate(word, vector, 1.0f);
-
-            if (i < words.length - 1) {
-                String bigram = word + "_" + words[i + 1];
-                hashAndAccumulate(bigram, vector, 1.5f);
-            }
-        }
-
-        // Substring 3-grams
-        for (int i = 0; i <= cleaned.length() - 3; i += 2) {
-            String trigram = cleaned.substring(i, i + 3);
-            hashAndAccumulate(trigram, vector, 0.5f);
-        }
-
-        // Normalize vector to unit length (L2 norm)
-        float norm = 0.0f;
-        for (float v : vector) {
-            norm += v * v;
-        }
-        norm = (float) Math.sqrt(norm);
-
-        if (norm > 0.0f) {
-            for (int i = 0; i < EMBEDDING_DIMENSION; i++) {
-                vector[i] = vector[i] / norm;
-            }
-        }
-
-        return vector;
+        return embeddingModel.embed(text);
     }
 
-    /**
-     * Formats float array into PostgreSQL vector format string e.g. "[0.123, -0.456, ...]"
-     */
+    /** Formats a vector as a pgvector literal, e.g. {@code [0.123,-0.456,...]}. */
     public String toVectorString(float[] embedding) {
-        StringBuilder sb = new StringBuilder("[");
+        StringBuilder sb = new StringBuilder(embedding.length * 10 + 2);
+        sb.append('[');
         for (int i = 0; i < embedding.length; i++) {
-            sb.append(String.format(java.util.Locale.US, "%.6f", embedding[i]));
-            if (i < embedding.length - 1) {
-                sb.append(",");
+            if (i > 0) {
+                sb.append(',');
             }
+            sb.append(String.format(Locale.US, "%.6f", embedding[i]));
         }
-        sb.append("]");
+        sb.append(']');
         return sb.toString();
-    }
-
-    private void hashAndAccumulate(String token, float[] vector, float weight) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(token.getBytes(StandardCharsets.UTF_8));
-
-            for (int j = 0; j < 4; j++) {
-                int index = ((hash[j * 4] & 0xFF) << 24
-                        | (hash[j * 4 + 1] & 0xFF) << 16
-                        | (hash[j * 4 + 2] & 0xFF) << 8
-                        | (hash[j * 4 + 3] & 0xFF)) & 0x7FFFFFFF;
-                int slot = index % EMBEDDING_DIMENSION;
-                float sign = (hash[j] & 0x01) == 0 ? 1.0f : -1.0f;
-                vector[slot] += sign * weight;
-            }
-        } catch (NoSuchAlgorithmException e) {
-            int hash = token.hashCode();
-            int slot = Math.abs(hash) % EMBEDDING_DIMENSION;
-            vector[slot] += weight;
-        }
     }
 }

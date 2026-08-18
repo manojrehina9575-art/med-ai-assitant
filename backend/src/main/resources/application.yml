@@ -8,8 +8,11 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:medai}
-    username: ${DB_USERNAME:medai}
-    password: ${DB_PASSWORD:medai_secret}
+    # Runtime connections use a non-superuser, non-owner role so PostgreSQL row-level security
+    # actually applies. The owner/superuser account (DB_USERNAME) is used only by Flyway.
+    # V11 creates this role; on a brand-new database Flyway runs first and creates it.
+    username: ${DB_APP_USERNAME:medai_app}
+    password: ${DB_APP_PASSWORD:medai_app_secret}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -25,6 +28,14 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    # Migrations run as the schema owner: DDL needs it, and a role that cannot bypass RLS cannot
+    # reliably perform data migrations either.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:medai}
+    user: ${DB_USERNAME:medai}
+    password: ${DB_PASSWORD:medai_secret}
+    placeholders:
+      appDbUser: ${DB_APP_USERNAME:medai_app}
+      appDbPassword: ${DB_APP_PASSWORD:medai_app_secret}
 
   servlet:
     multipart:
@@ -35,11 +46,32 @@ spring:
     openai:
       base-url: ${AI_BASE_URL:https://api.groq.com/openai}
       api-key: ${GROQ_API_KEY:${OPENAI_API_KEY:gsk-placeholder}}
+      # Groq's OpenAI-compatible surface exposes no embeddings endpoint, and embeddings run
+      # locally regardless (see EmbeddingService). Disabling this keeps a second EmbeddingModel
+      # bean out of the context.
+      embedding:
+        enabled: false
       chat:
         options:
-          model: ${AI_MODEL:llama-3.3-70b-versatile}
+          model: ${AI_MODEL:qwen/qwen3.6-27b}
+    # Local sentence-transformer embeddings (see EmbeddingService).
+    #
+    # The defaults below fetch the model from GitHub on first start, which is convenient for
+    # local development but makes a cold start depend on github.com being reachable. The
+    # container image vendors both files at build time and overrides these with file: URIs, so
+    # production startup needs no network at all.
+    embedding:
+      transformer:
+        onnx:
+          model-uri: ${EMBEDDING_MODEL_URI:https://github.com/spring-projects/spring-ai/raw/main/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2/model.onnx}
+        tokenizer:
+          uri: ${EMBEDDING_TOKENIZER_URI:https://raw.githubusercontent.com/spring-projects/spring-ai/main/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2/tokenizer.json}
+        cache:
+          directory: ${EMBEDDING_CACHE_DIR:/tmp/spring-ai-onnx-model}
           temperature: 0.2
-          max-tokens: 4096
+          # Groq free tier caps total tokens/min (TPM) at 8000 (input + completion).
+          # Keep completion low enough that image-input + completion stays under that ceiling.
+          max-tokens: ${AI_MAX_TOKENS:4096}
     retry:
       max-attempts: 3
       backoff:
@@ -50,19 +82,65 @@ server:
   port: ${SERVER_PORT:8080}
 
 app:
+  knowledge:
+    # Stamped on every chunk so a model change is detectable instead of silently mixing
+    # incompatible vector spaces in one index.
+    embedding-model-id: ${EMBEDDING_MODEL_ID:all-MiniLM-L6-v2}
+  analysis:
+    # Bounds concurrent AI calls. Raising max-size raises spend and provider rate-limit pressure
+    # proportionally; the queue absorbs bursts instead of dropping requests.
+    executor:
+      core-size: ${AI_EXECUTOR_CORE:4}
+      max-size: ${AI_EXECUTOR_MAX:8}
+      queue-capacity: ${AI_EXECUTOR_QUEUE:50}
+    # Resumes analyses left PENDING by a transient failure, and those whose worker died
+    # mid-processing. This is the only retry mechanism — see AsyncConfig for why.
+    reaper:
+      enabled: ${ANALYSIS_REAPER_ENABLED:true}
+      interval-ms: ${ANALYSIS_REAPER_INTERVAL_MS:60000}
+      initial-delay-ms: 30000
+      # Also caps concurrent AI calls per instance per tick.
+      batch-size: ${ANALYSIS_REAPER_BATCH_SIZE:5}
+      # A PROCESSING row untouched for this long is treated as crash-interrupted.
+      stale-after-minutes: ${ANALYSIS_REAPER_STALE_MINUTES:10}
   jwt:
     secret: ${JWT_SECRET}
-    expiration-ms: 86400000
-    refresh-expiration-ms: 604800000
+    # 15 minutes. Access tokens are stateless and cannot be revoked, so their lifetime is the
+    # window in which a deactivated account or a demoted role still works. It was 24 hours.
+    # The client refreshes silently, so this is invisible to users.
+    expiration-ms: ${JWT_EXPIRATION_MS:900000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
   storage:
     type: ${STORAGE_TYPE:local}
     local-path: ${STORAGE_LOCAL_PATH:./uploads}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
   ai:
+    # Set to true only once a BAA / data processing agreement is signed with the configured
+    # provider, or the base URL points at a self-hosted model. See AiProviderAdvisory.
+    data-agreement-in-place: ${AI_DATA_AGREEMENT_IN_PLACE:false}
     rate-limit:
       max-requests-per-minute: ${AI_RATE_LIMIT_RPM:10}
       max-cost-per-day-usd: ${AI_RATE_LIMIT_DAILY_USD:50.0}
+    # USD per million tokens, keyed by model id (matched case-insensitively, longest prefix wins).
+    # A model that is not listed here contributes $0 to the daily cap and logs a warning — so the
+    # cap under-reports rather than inventing a number, which is what the old hardcoded GPT-4o
+    # rate did for every model. Verify against your provider's current price list before relying
+    # on these for billing.
+    pricing:
+      models:
+        "[qwen/qwen3.6-27b]":
+          input-per-million: 0.15
+          output-per-million: 0.60
+        "[llama-3.3-70b-versatile]":
+          input-per-million: 0.59
+          output-per-million: 0.79
+        "[gpt-4o-mini]":
+          input-per-million: 0.15
+          output-per-million: 0.60
+        "[gpt-4o]":
+          input-per-million: 2.50
+          output-per-million: 10.00
 
 management:
   endpoints:

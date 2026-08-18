@@ -52,9 +52,15 @@ export function DashboardLayout() {
               <span>{time}</span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-950/40 border border-emerald-900/60 rounded-lg px-2.5 py-1 text-[11px]">
+            {/*
+              This slot previously read "HIPAA Compliant RLS". That claim was not true — row-level
+              security was not enforced at runtime and no access was being audited — and asserting
+              compliance you do not hold is what turns an incident into a lawsuit. It now states
+              the one thing that is both true and important for a clinician to see.
+            */}
+            <div className="flex items-center gap-1.5 text-amber-400 font-medium bg-amber-950/40 border border-amber-900/60 rounded-lg px-2.5 py-1 text-[11px]">
               <Shield className="h-3.5 w-3.5" />
-              <span>HIPAA Compliant RLS</span>
+              <span>Clinician review required</span>
             </div>
           </div>
         </header>

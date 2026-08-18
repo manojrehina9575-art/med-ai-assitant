@@ -1,13 +1,54 @@
-FROM maven:3.9-eclipse-temurin-21-alpine AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
 COPY src ./src
-RUN mvn package -DskipTests -B
+# Cache the Maven repository across builds so dependencies (incl. the dcm4che
+# artifacts from a slow mirror) are downloaded once, not on every source change.
+RUN --mount=type=cache,target=/root/.m2 mvn clean package -DskipTests -B
 
-FROM eclipse-temurin:21-jre-alpine
+# Must be a glibc-based image, NOT Alpine. Local embeddings run through the DJL
+# HuggingFace tokenizer, whose native library links against glibc and libstdc++;
+# on a musl image it fails at startup with:
+#   libtokenizers.so: Error loading shared library libstdc++.so.6
+FROM eclipse-temurin:21-jre-noble
+
+# curl is only here for the healthcheck below.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Vendor the embedding model at BUILD time. Spring AI's default is to download it from
+# github.com on first start, which makes a cold start fail whenever GitHub is unreachable —
+# and the failure takes the whole application context down, not just the knowledge base.
+ARG EMBEDDING_MODEL_BASE=https://github.com/spring-projects/spring-ai/raw/main/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2
+RUN mkdir -p /opt/medai/models \
+    && curl -fsSL -o /opt/medai/models/model.onnx "${EMBEDDING_MODEL_BASE}/model.onnx" \
+    && curl -fsSL -o /opt/medai/models/tokenizer.json "${EMBEDDING_MODEL_BASE}/tokenizer.json"
+
+# Run as an unprivileged user: a container that is compromised while running as
+# root can write anywhere in the image, including the uploaded patient files.
+RUN groupadd --system --gid 1001 medai \
+    && useradd --system --uid 1001 --gid medai --create-home --home-dir /home/medai medai
+
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
-RUN mkdir -p /app/uploads
+RUN mkdir -p /app/uploads /home/medai/.djl.ai && chown -R medai:medai /app /home/medai
+
+USER medai
+
+ENV HOME=/home/medai \
+    DJL_CACHE_DIR=/home/medai/.djl.ai \
+    EMBEDDING_MODEL_URI=file:/opt/medai/models/model.onnx \
+    EMBEDDING_TOKENIZER_URI=file:/opt/medai/models/tokenizer.json \
+    EMBEDDING_CACHE_DIR=/home/medai/.spring-ai-onnx \
+    # Without a percentage the JVM sizes the heap from the host's total memory, not the
+    # container limit — an easy OOM kill once a few base64 images are in flight.
+    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
+
 EXPOSE 8080
+
+# start-period covers Flyway migrations plus the embedding model load.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD curl -fsS http://localhost:8080/actuator/health || exit 1
+
 ENTRYPOINT ["java", "-jar", "app.jar"]

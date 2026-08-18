@@ -6,7 +6,7 @@ import com.medai.auth.repository.RefreshTokenRepository;
 import com.medai.auth.security.JwtService;
 import com.medai.common.exception.BadRequestException;
 import com.medai.common.exception.UnauthorizedException;
-import com.medai.tenant.TenantContext;
+import com.medai.tenant.TenantSession;
 import com.medai.tenant.entity.Tenant;
 import com.medai.tenant.repository.TenantRepository;
 import com.medai.user.entity.User;
@@ -32,6 +32,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final TenantSession tenantSession;
 
     @Transactional
     public AuthResponse registerTenant(RegisterTenantRequest request) {
@@ -49,7 +50,9 @@ public class AuthService {
                 .build();
         tenant = tenantRepository.save(tenant);
 
-        TenantContext.setCurrentTenantId(tenant.getId());
+        // Row-level security is enforced (V9), so the connection must be told which tenant it is
+        // acting as before the admin user is inserted — the WITH CHECK clause would reject it.
+        tenantSession.bind(tenant.getId());
 
         if (userRepository.existsByTenantIdAndEmail(tenant.getId(), request.getAdminEmail())) {
             throw new BadRequestException("Email already registered: " + request.getAdminEmail());
@@ -78,6 +81,10 @@ public class AuthService {
             throw new BadRequestException("Tenant ID is required");
         }
 
+        // Bind before any query against a tenant-scoped table: `users` is behind RLS, so an
+        // unbound connection would find no account and every login would fail as bad credentials.
+        tenantSession.bind(tenantId);
+
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new UnauthorizedException("Invalid tenant"));
 
@@ -99,8 +106,6 @@ public class AuthService {
         user.setLastLoginAt(Instant.now());
         userRepository.save(user);
 
-        TenantContext.setCurrentTenantId(tenantId);
-
         log.info("User logged in: {} (tenant: {})", user.getEmail(), tenant.getName());
 
         return buildAuthResponse(user, tenant);
@@ -108,7 +113,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse registerUser(RegisterUserRequest request) {
-        UUID tenantId = TenantContext.requireTenantId();
+        UUID tenantId = com.medai.tenant.TenantContext.requireTenantId();
 
         if (userRepository.existsByTenantIdAndEmail(tenantId, request.getEmail())) {
             throw new BadRequestException("Email already registered: " + request.getEmail());
@@ -147,6 +152,10 @@ public class AuthService {
             throw new UnauthorizedException("Refresh token is required");
         }
 
+        // A refresh token is looked up by hash before its tenant is known, which is the one read
+        // that is legitimately cross-tenant. Scoped to this transaction only.
+        tenantSession.beginMaintenance();
+
         String tokenHash = jwtService.hashToken(rawRefreshToken);
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
@@ -165,10 +174,17 @@ public class AuthService {
         User user = userRepository.findByIdAndTenantId(storedToken.getUserId(), storedToken.getTenantId())
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
 
+        // Access tokens are stateless, so deactivation only takes effect at the next refresh.
+        // With a 15-minute access token that bounds the window to 15 minutes.
+        if (!user.getIsActive()) {
+            refreshTokenRepository.revokeAllByUserId(user.getId());
+            throw new UnauthorizedException("Account is deactivated");
+        }
+
         Tenant tenant = tenantRepository.findById(storedToken.getTenantId())
                 .orElseThrow(() -> new UnauthorizedException("Tenant not found"));
 
-        TenantContext.setCurrentTenantId(tenant.getId());
+        tenantSession.bind(tenant.getId());
 
         // Revoke the old token
         storedToken.setRevoked(true);

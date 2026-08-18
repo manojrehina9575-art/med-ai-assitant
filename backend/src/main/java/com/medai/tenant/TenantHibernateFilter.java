@@ -7,20 +7,17 @@ import org.hibernate.Session;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import java.sql.PreparedStatement;
 import java.util.UUID;
 
 /**
- * Interceptor that enables Hibernate tenant filtering and sets the PostgreSQL
- * RLS session variable for every authenticated request.
+ * Enables the Hibernate tenant filter for the current request, adding
+ * {@code WHERE tenant_id = :tenantId} to JPA queries on {@code TenantAwareEntity} subclasses.
  *
- * <p>Two layers of tenant isolation:
- * <ul>
- *   <li><b>Hibernate Filter</b>: Adds {@code WHERE tenant_id = :tenantId} to all JPA queries
- *       on entities extending {@code TenantAwareEntity}.</li>
- *   <li><b>PostgreSQL RLS</b>: Sets {@code app.current_tenant} session variable so that
- *       Row-Level Security policies enforce isolation even for raw SQL or missed filters.</li>
- * </ul>
+ * <p>This is the first of two isolation layers and the one that shapes queries. The second — and
+ * the one that actually enforces — is PostgreSQL row-level security, whose session variable is set
+ * per connection by {@link TenantAwareDataSource}. Setting that variable used to happen here too,
+ * which was unreliable: an interceptor runs once per request, while connections are checked out per
+ * transaction, so any work on a second connection ran unprotected.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,38 +32,9 @@ public class TenantHibernateFilter implements HandlerInterceptor {
                              Object handler) {
         UUID tenantId = TenantContext.getCurrentTenantId();
         if (tenantId != null) {
-            enableHibernateFilter(tenantId);
-            setRlsSessionVariable(tenantId);
+            Session session = entityManager.unwrap(Session.class);
+            session.enableFilter("tenantFilter").setParameter("tenantId", tenantId);
         }
         return true;
-    }
-
-    /**
-     * Enables the Hibernate filter so all JPA queries on TenantAwareEntity
-     * subclasses automatically include tenant_id filtering.
-     */
-    private void enableHibernateFilter(UUID tenantId) {
-        Session session = entityManager.unwrap(Session.class);
-        session.enableFilter("tenantFilter")
-               .setParameter("tenantId", tenantId);
-    }
-
-    /**
-     * Sets the PostgreSQL session variable used by Row-Level Security policies.
-     * Uses set_config('app.current_tenant', ?, false) which supports prepared statement parameters.
-     */
-    private void setRlsSessionVariable(UUID tenantId) {
-        try {
-            Session session = entityManager.unwrap(Session.class);
-            session.doWork(connection -> {
-                try (PreparedStatement stmt = connection.prepareStatement(
-                        "SELECT set_config('app.current_tenant', ?, false)")) {
-                    stmt.setString(1, tenantId.toString());
-                    stmt.execute();
-                }
-            });
-        } catch (Exception e) {
-            log.warn("Failed to set RLS session variable for tenant {}: {}", tenantId, e.getMessage());
-        }
     }
 }

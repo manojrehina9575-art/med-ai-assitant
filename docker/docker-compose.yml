@@ -6,8 +6,11 @@ services:
       POSTGRES_DB: ${DB_NAME:-medai}
       POSTGRES_USER: ${DB_USERNAME:-medai}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-medai_secret}
+    # Bound to loopback only. Publishing 5432 on 0.0.0.0 exposed the patient database to
+    # anything that could reach the host — including, on most cloud VMs, the internet.
+    # Comment this out entirely once you no longer need a local SQL client.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,6 +23,7 @@ services:
     build:
       context: ../backend
       dockerfile: ../docker/Dockerfile.backend
+    image: medai-backend:latest
     container_name: medai-backend
     env_file:
       - ../.env
@@ -27,6 +31,10 @@ services:
       SPRING_PROFILES_ACTIVE: dev
       DB_HOST: postgres
       DB_PORT: 5432
+      # Runtime role is created by migration V11 and is subject to row-level security.
+      # Set DB_APP_PASSWORD in .env; the default is a development placeholder.
+      DB_APP_USERNAME: ${DB_APP_USERNAME:-medai_app}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-medai_app_secret}
       STORAGE_TYPE: local
       STORAGE_LOCAL_PATH: /app/uploads
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
@@ -37,6 +45,9 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
+    # Patient files live in this volume and nowhere else. Back it up alongside the database —
+    # a database restore without the matching files gives you records pointing at missing studies.
+    restart: unless-stopped
 
   frontend:
     build:

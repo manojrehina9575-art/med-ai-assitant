@@ -41,7 +41,7 @@ public class FileUploadService {
         UUID tenantId = TenantContext.requireTenantId();
         UserPrincipal principal = getCurrentUser();
 
-        if (!patientRepository.existsById(patientId)) {
+        if (patientRepository.findByIdAndTenantId(patientId, tenantId).isEmpty()) {
             throw new ResourceNotFoundException("Patient", "id", patientId);
         }
 
@@ -96,21 +96,27 @@ public class FileUploadService {
                 .build();
     }
 
+    /**
+     * Loads a file by its full path identity — tenant, patient, and file.
+     *
+     * <p>Scoping by tenant alone was not enough: the {@code patientId} on the route was ignored,
+     * so any authenticated user could read any file in the hospital by guessing file IDs.
+     */
     @Transactional(readOnly = true)
-    public MedicalFile getFile(UUID fileId) {
+    public MedicalFile getFile(UUID patientId, UUID fileId) {
         UUID tenantId = TenantContext.requireTenantId();
-        return medicalFileRepository.findByIdAndTenantId(fileId, tenantId)
+        return medicalFileRepository.findByIdAndPatientIdAndTenantId(fileId, patientId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("File", "id", fileId));
     }
 
     @Transactional
-    public void deleteFile(UUID fileId) {
+    public void deleteFile(UUID patientId, UUID fileId) {
         UUID tenantId = TenantContext.requireTenantId();
-        MedicalFile file = medicalFileRepository.findByIdAndTenantId(fileId, tenantId)
+        MedicalFile file = medicalFileRepository.findByIdAndPatientIdAndTenantId(fileId, patientId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("File", "id", fileId));
         storageService.delete(file.getStoragePath());
         medicalFileRepository.delete(file);
-        log.info("File deleted: {} (tenant: {})", fileId, tenantId);
+        log.info("File deleted: {} for patient {} (tenant: {})", fileId, patientId, tenantId);
     }
 
     private UserPrincipal getCurrentUser() {

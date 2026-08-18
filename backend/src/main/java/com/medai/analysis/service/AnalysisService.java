@@ -164,6 +164,7 @@ public class AnalysisService {
                 .rawResult(entity.getResult())
                 .errorMessage(entity.getErrorMessage())
                 .modelUsed(entity.getModelUsed())
+                .modalityUsed(entity.getModalityUsed())
                 .promptTokens(entity.getPromptTokens())
                 .completionTokens(entity.getCompletionTokens())
                 .totalTokens(entity.getTotalTokens())

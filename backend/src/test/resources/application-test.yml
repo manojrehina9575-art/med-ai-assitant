@@ -17,6 +17,10 @@ logging:
 
 # JWT secret for tests (not used in production)
 app:
+  # The reaper would otherwise pick up analyses seeded by tests and try to call a real model.
+  analysis:
+    reaper:
+      enabled: false
   jwt:
     secret: dGVzdC1qd3Qtc2VjcmV0LWZvci1tZWQtYWktYXNzaXN0YW50LXRlc3RpbmctcHVycG9zZXMtb25seQ==
   ai:

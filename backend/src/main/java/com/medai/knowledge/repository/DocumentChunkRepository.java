@@ -12,9 +12,9 @@ import java.util.UUID;
 @Repository
 public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UUID> {
 
-    List<DocumentChunk> findByDocumentIdAndTenantIdOrderByChunkIndexAsc(UUID documentId, UUID tenantId);
+    List<DocumentChunk> findByKnowledgeDocument_IdAndTenantIdOrderByChunkIndexAsc(UUID documentId, UUID tenantId);
 
-    void deleteByDocumentIdAndTenantId(UUID documentId, UUID tenantId);
+    void deleteByKnowledgeDocument_IdAndTenantId(UUID documentId, UUID tenantId);
 
     @Query(value = """
             SELECT c.id as id,

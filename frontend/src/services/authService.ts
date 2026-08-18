@@ -26,8 +26,16 @@ export const authService = {
     return res.data.data;
   },
 
-  async getTenants(): Promise<TenantInfo[]> {
-    const res = await api.get<ApiResponse<TenantInfo[]>>('/auth/tenants');
+  /**
+   * Resolves a hospital by the subdomain their administrator gave them.
+   *
+   * <p>Replaces a call that listed every hospital on the platform to anyone who loaded the login
+   * page.
+   */
+  async findTenant(subdomain: string): Promise<TenantInfo> {
+    const res = await api.get<ApiResponse<TenantInfo>>('/auth/tenants', {
+      params: { subdomain },
+    });
     return res.data.data;
   },
 

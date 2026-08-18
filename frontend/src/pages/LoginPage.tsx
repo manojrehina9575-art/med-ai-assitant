@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { authService } from '@/services/authService';
@@ -7,21 +7,15 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Stethoscope, Loader2 } from 'lucide-react';
-import type { TenantInfo } from '@/types';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [tenantId, setTenantId] = useState('');
-  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [subdomain, setSubdomain] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
-
-  useEffect(() => {
-    authService.getTenants().then(setTenants).catch(() => {});
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,12 +23,19 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await authService.login(email, password, tenantId);
+      // The hospital is resolved from its subdomain rather than picked from a public list of
+      // every hospital on the platform.
+      const tenant = await authService.findTenant(subdomain);
+      const res = await authService.login(email, password, tenant.id);
       setAuth(res);
       navigate('/dashboard');
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Login failed. Please try again.');
+      const error = err as { response?: { status?: number; data?: { message?: string } } };
+      setError(
+        error.response?.status === 404
+          ? 'We could not find that hospital. Check the workspace name with your administrator.'
+          : error.response?.data?.message || 'Login failed. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -63,21 +64,19 @@ export function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="tenant">Hospital</Label>
-              <select
-                id="tenant"
-                value={tenantId}
-                onChange={(e) => setTenantId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Label htmlFor="subdomain">Hospital workspace</Label>
+              <Input
+                id="subdomain"
+                type="text"
+                placeholder="your-hospital"
+                autoComplete="organization"
+                value={subdomain}
+                onChange={(e) => setSubdomain(e.target.value)}
                 required
-              >
-                <option value="">Select your hospital...</option>
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              />
+              <p className="text-xs text-muted-foreground">
+                The workspace name your administrator gave you.
+              </p>
             </div>
 
             <div className="space-y-2">

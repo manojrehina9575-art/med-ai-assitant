@@ -23,6 +23,7 @@
         <springdoc.version>2.6.0</springdoc.version>
         <spring-ai.version>1.0.0-M4</spring-ai.version>
         <testcontainers.version>1.20.4</testcontainers.version>
+        <dcm4che.version>5.35.0</dcm4che.version>
     </properties>
 
     <dependencies>
@@ -46,6 +47,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- AspectJ, for the audit aspect that gives every controller call an audit entry. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
 
         <!-- Database -->
@@ -95,11 +101,29 @@
             <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
         </dependency>
 
+        <!--
+            Sentence-transformer embeddings running in-process via ONNX Runtime.
+            Chosen over a hosted embedding API for two reasons: knowledge-base text never
+            leaves the server, and it costs nothing per token. Replaces a hash-based
+            "embedding" whose cosine distance measured token overlap, not meaning.
+        -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-transformers-spring-boot-starter</artifactId>
+        </dependency>
+
         <!-- PDF Document Extraction -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>3.0.3</version>
+        </dependency>
+
+        <!-- DICOM decoding (renders .dcm pixel data to a raster image for vision analysis) -->
+        <dependency>
+            <groupId>org.dcm4che</groupId>
+            <artifactId>dcm4che-imageio</artifactId>
+            <version>${dcm4che.version}</version>
         </dependency>
 
         <!-- Utilities -->
@@ -160,9 +184,25 @@
 
     <repositories>
         <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+        <repository>
             <id>spring-milestones</id>
             <name>Spring Milestones</name>
             <url>https://repo.spring.io/milestone</url>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+        <repository>
+            <id>spring-snapshots</id>
+            <name>Spring Snapshots</name>
+            <url>https://repo.spring.io/snapshot</url>
+            <releases><enabled>false</enabled></releases>
+        </repository>
+        <repository>
+            <id>dcm4che</id>
+            <name>dcm4che Repository</name>
+            <url>https://maven.dcm4che.org</url>
             <snapshots><enabled>false</enabled></snapshots>
         </repository>
     </repositories>
