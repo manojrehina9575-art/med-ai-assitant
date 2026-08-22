@@ -14,7 +14,7 @@ FROM eclipse-temurin:21-jre-noble
 
 # curl is only here for the healthcheck below.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Vendor the embedding model at BUILD time. Spring AI's default is to download it from
@@ -34,8 +34,6 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 RUN mkdir -p /app/uploads /home/medai/.djl.ai && chown -R medai:medai /app /home/medai
 
-USER medai
-
 ENV HOME=/home/medai \
     DJL_CACHE_DIR=/home/medai/.djl.ai \
     EMBEDDING_MODEL_URI=file:/opt/medai/models/model.onnx \
@@ -51,4 +49,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
     CMD curl -fsS http://localhost:8080/actuator/health || exit 1
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+RUN printf '#!/bin/sh\nset -e\nUPLOADS_DIR="${STORAGE_LOCAL_PATH:-/app/uploads}"\nmkdir -p "$UPLOADS_DIR" /home/medai/.djl.ai /home/medai/.spring-ai-onnx 2>/dev/null || true\nchown -R medai:medai "$UPLOADS_DIR" /home/medai 2>/dev/null || true\nexec gosu medai java -jar /app/app.jar "$@"\n' > /entrypoint.sh \
+    && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

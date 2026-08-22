@@ -16,6 +16,8 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
 
     Optional<Patient> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    Optional<Patient> findByTenantIdAndId(UUID tenantId, UUID id);
+
     Page<Patient> findByTenantId(UUID tenantId, Pageable pageable);
 
     Optional<Patient> findByTenantIdAndMedicalRecordNumber(UUID tenantId, String mrn);

@@ -22,6 +22,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.6.0</springdoc.version>
         <spring-ai.version>1.0.0-M4</spring-ai.version>
+        <langgraph4j.version>1.8.24</langgraph4j.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <dcm4che.version>5.35.0</dcm4che.version>
     </properties>
@@ -110,6 +111,13 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-transformers-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- LangGraph4j: Stateful multi-agent graph workflows -->
+        <dependency>
+            <groupId>org.bsc.langgraph4j</groupId>
+            <artifactId>langgraph4j-core</artifactId>
+            <version>${langgraph4j.version}</version>
         </dependency>
 
         <!-- PDF Document Extraction -->

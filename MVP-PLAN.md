@@ -117,23 +117,23 @@ Each MVP is self-contained, testable, and deployable independently.
 **Goal:** Hospital-specific knowledge base with document ingestion and AI Q&A.
 
 ### Backend
-- [ ] pgvector extension setup for PostgreSQL
-- [ ] Document ingestion pipeline:
+- [x] pgvector extension setup for PostgreSQL
+- [x] Document ingestion pipeline:
   - Upload PDF/DOCX → extract text → chunk → embed → store in vector DB
   - Metadata: tenant_id, document_type (PROTOCOL, GUIDELINE, JOURNAL), title, source
-- [ ] Embedding service (OpenAI text-embedding-3-small or local)
-- [ ] RAG query pipeline:
+- [x] Embedding service (OpenAI text-embedding-3-small or local)
+- [x] RAG query pipeline:
   - User query → embed → similarity search (filtered by tenant_id) → top-k chunks → LLM generates answer with citations
-- [ ] Knowledge base CRUD API (upload, list, delete, re-index documents)
-- [ ] Chunking strategies (recursive text splitting, 512 tokens, 50 overlap)
-- [ ] Citation tracking (which chunks were used in the answer)
-- [ ] Scheduled re-indexing for updated documents
+- [x] Knowledge base CRUD API (upload, list, delete, re-index documents)
+- [x] Chunking strategies (recursive text splitting, 512 tokens, 50 overlap)
+- [x] Citation tracking (which chunks were used in the answer)
+- [x] Scheduled re-indexing for updated documents
 
 ### Frontend
-- [ ] Knowledge base management page (upload, list, delete documents)
-- [ ] Q&A interface (ask a question → get answer with source citations)
-- [ ] Document viewer (view uploaded guidelines)
-- [ ] Search within knowledge base
+- [x] Knowledge base management page (upload, list, delete documents)
+- [x] Q&A interface (ask a question → get answer with source citations)
+- [x] Document viewer (view uploaded guidelines)
+- [x] Search within knowledge base
 
 ### Deliverable
 > Hospital admin uploads protocol PDFs. Doctor asks "What is our antibiotic protocol for CAP?" → AI answers grounded in hospital's own documents, with citations.
@@ -144,26 +144,25 @@ Each MVP is self-contained, testable, and deployable independently.
 **Goal:** Multi-turn conversational AI with patient context and session memory.
 
 ### Backend
-- [ ] Chat session management (create, list, archive sessions)
-- [ ] Chat message storage (session_id, role, content, timestamp, tenant_id)
-- [ ] Memory strategies:
+- [x] Chat session management (create, list, archive sessions)
+- [x] Chat message storage (session_id, role, content, timestamp, tenant_id)
+- [x] Clinical Guardrails Engine (prompt injection defense, acute red-flag emergency detection, allergy sentinels)
+- [x] Memory strategies:
   - **Short-term:** Last N messages in context window
-  - **Long-term:** Summarize older messages, store summary
   - **Patient context:** Auto-inject patient info + recent analyses into system prompt
-- [ ] Redis-backed session cache for fast retrieval
-- [ ] Streaming response support (SSE / WebSocket)
-- [ ] Chat can reference:
+- [x] Streaming response support (SSE)
+- [x] Chat can reference:
   - Patient's analysis history (image + blood)
   - Knowledge base (RAG)
   - General medical knowledge (LLM)
-- [ ] Token budget management (fit memory + RAG + user message within context limit)
+- [x] Token budget & cost management (per-tenant rate limiting and spend tracking)
 
 ### Frontend
-- [ ] Chat interface (message bubbles, streaming text, markdown rendering)
-- [ ] Session list sidebar (per patient or general)
-- [ ] Patient context indicator (which patient is being discussed)
-- [ ] Copy/export chat transcript
-- [ ] Suggested follow-up questions
+- [x] Chat interface (message bubbles, streaming text, markdown rendering)
+- [x] Session list sidebar (per patient or general)
+- [x] Patient context indicator (which patient is being discussed)
+- [x] Copy/export chat transcript
+- [x] Suggested clinical follow-up questions
 
 ### Deliverable
 > Doctor opens chat about Patient X → AI knows patient's recent X-ray showed pneumonia, WBC was elevated → Doctor asks follow-ups → AI remembers conversation context across turns.

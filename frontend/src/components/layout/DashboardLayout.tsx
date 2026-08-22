@@ -1,73 +1,133 @@
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Sidebar } from './Sidebar';
-import { Shield, Clock, Sparkles } from 'lucide-react';
+import { Shield, Clock, Search, Bell } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
+const pageMeta: Record<string, { title: string; sub: string }> = {
+  dashboard:    { title: 'Dashboard',                  sub: 'Clinical overview & quick actions' },
+  patients:     { title: 'Patient Registry',           sub: 'Medical records management' },
+  upload:       { title: 'Upload Studies',             sub: 'Diagnostic file ingestion' },
+  workflows:    { title: 'Clinical Agent & LangGraph4j Workflows', sub: 'Autonomous multi-step actions & HITL approval' },
+  analysis:     { title: 'AI Radiology & PACS',        sub: 'Multimodal image analysis' },
+  'blood-reports': { title: 'Blood & Lab Reports',     sub: 'Laboratory analytics' },
+  knowledge:    { title: 'Hospital Protocols',         sub: 'RAG knowledge base' },
+  chat:         { title: 'Clinical AI Chat',           sub: 'AI-assisted decision support' },
+  settings:     { title: 'Settings',                   sub: 'Security & system configuration' },
+};
 
 export function DashboardLayout() {
   const { isAuthenticated } = useAuthStore();
   const location = useLocation();
   const [time, setTime] = useState(
-    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   );
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    }, 1000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => {
+      setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }, 30_000);
+    return () => clearInterval(t);
   }, []);
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  const getPageTitle = () => {
-    const path = location.pathname;
-    if (path.includes('analysis')) return 'AI Radiology & Multimodal PACS';
-    if (path.includes('patients')) return 'Patient Registry & Medical Records';
-    if (path.includes('upload')) return 'Diagnostic Study Ingestion';
-    if (path.includes('blood-reports')) return 'Laboratory & Blood Report Analytics';
-    if (path.includes('settings')) return 'Enterprise Security & System Settings';
-    return 'Clinical Intelligence Command Center';
-  };
+  const segment = location.pathname.split('/').filter(Boolean)[0] || 'dashboard';
+  const meta = pageMeta[segment] || { title: 'Med-AI', sub: 'Clinical Intelligence Platform' };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans antialiased">
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg, #0a0f1e)' }}>
       <Sidebar />
+
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Clinical Header Bar */}
-        <header className="flex h-14 items-center justify-between border-b border-slate-800/80 bg-slate-950/90 px-6 backdrop-blur-md z-10">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-bold tracking-tight text-slate-200">{getPageTitle()}</h2>
-            <span className="hidden items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-400 border border-blue-500/20 md:inline-flex">
-              <Sparkles className="h-3 w-3" />
-              AI Assisted
-            </span>
+        {/* ── Top Header ── */}
+        <header
+          className="flex h-14 shrink-0 items-center justify-between px-6 gap-4"
+          style={{
+            background: 'rgba(17,24,39,0.9)',
+            borderBottom: '1px solid var(--clr-border, #1e2d45)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          {/* Left: Page title */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="hidden sm:block">
+              <h2 className="text-sm font-bold text-white leading-none">{meta.title}</h2>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--clr-text-3, #64748b)' }}>{meta.sub}</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-slate-400">
-            <div className="hidden items-center gap-1.5 rounded-lg bg-slate-900 border border-slate-800 px-3 py-1.5 font-mono text-[11px] text-slate-300 sm:flex">
-              <Clock className="h-3.5 w-3.5 text-blue-400" />
+          {/* Right: Search + Clock + Warning + Bell */}
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Search */}
+            <div
+              className="hidden md:flex items-center gap-2 h-8 px-3 rounded-lg text-xs"
+              style={{
+                background: 'var(--surface-2, #1a2235)',
+                border: '1px solid var(--clr-border, #1e2d45)',
+                color: 'var(--clr-text-3, #64748b)',
+              }}
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span>Search…</span>
+              <kbd
+                className="ml-2 hidden lg:inline text-[10px] px-1.5 py-0.5 rounded"
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--clr-text-3)' }}
+              >
+                ⌘K
+              </kbd>
+            </div>
+
+            {/* Clock */}
+            <div
+              className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-mono"
+              style={{
+                background: 'var(--surface-2, #1a2235)',
+                border: '1px solid var(--clr-border, #1e2d45)',
+                color: 'var(--clr-text-2, #94a3b8)',
+              }}
+            >
+              <Clock className="h-3.5 w-3.5" style={{ color: '#3b82f6' }} />
               <span>{time}</span>
             </div>
 
-            {/*
-              This slot previously read "HIPAA Compliant RLS". That claim was not true — row-level
-              security was not enforced at runtime and no access was being audited — and asserting
-              compliance you do not hold is what turns an incident into a lawsuit. It now states
-              the one thing that is both true and important for a clinician to see.
-            */}
-            <div className="flex items-center gap-1.5 text-amber-400 font-medium bg-amber-950/40 border border-amber-900/60 rounded-lg px-2.5 py-1 text-[11px]">
+            {/* Clinician disclaimer */}
+            <div
+              className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold"
+              style={{
+                background: 'rgba(245,158,11,0.08)',
+                border: '1px solid rgba(245,158,11,0.2)',
+                color: '#fbbf24',
+              }}
+            >
               <Shield className="h-3.5 w-3.5" />
-              <span>Clinician review required</span>
+              <span className="hidden lg:inline">Clinician review required</span>
             </div>
+
+            {/* Bell */}
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+              style={{
+                background: 'var(--surface-2, #1a2235)',
+                border: '1px solid var(--clr-border, #1e2d45)',
+                color: 'var(--clr-text-2, #94a3b8)',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'white'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--clr-text-2, #94a3b8)'; }}
+            >
+              <Bell className="h-3.5 w-3.5" />
+            </button>
           </div>
         </header>
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-900/40 p-6 scrollbar-thin scrollbar-thumb-slate-800">
-          <Outlet />
+        {/* ── Main Content ── */}
+        <main
+          className="flex-1 overflow-y-auto p-6"
+          style={{ background: 'var(--bg, #0a0f1e)' }}
+        >
+          <div className="animate-in">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

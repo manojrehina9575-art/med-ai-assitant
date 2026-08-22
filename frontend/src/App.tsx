@@ -10,6 +10,8 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { AnalysisPage } from '@/pages/AnalysisPage';
 import { BloodReportPage } from '@/pages/BloodReportPage';
 import { KnowledgeBasePage } from '@/pages/KnowledgeBasePage';
+import { ChatPage } from '@/pages/ChatPage';
+import { WorkflowsPage } from '@/pages/WorkflowsPage';
 
 export default function App() {
   return (
@@ -23,9 +25,12 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/patients" element={<PatientsPage />} />
         <Route path="/upload" element={<UploadPage />} />
+        <Route path="/workflows" element={<WorkflowsPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/blood-reports" element={<BloodReportPage />} />
         <Route path="/knowledge" element={<KnowledgeBasePage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/chat/:sessionId" element={<ChatPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
