@@ -56,9 +56,11 @@ public class ObservabilityController {
             var usageOpt = usageRepository.findByTenantIdAndUsageDate(tenantId, LocalDate.now());
             if (usageOpt.isPresent()) {
                 var usage = usageOpt.get();
-                todayTokens = usage.getTotalTokens();
-                todaySpend = usage.getEstimatedCostUsd();
-                todayRequests = usage.getRequestCount();
+                long prompt = usage.getPromptTokens() != null ? usage.getPromptTokens() : 0L;
+                long completion = usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0L;
+                todayTokens = prompt + completion;
+                todaySpend = usage.getCostUsd() != null ? usage.getCostUsd().doubleValue() : 0.0;
+                todayRequests = usage.getRequestCount() != null ? usage.getRequestCount() : 0;
             }
         }
 
