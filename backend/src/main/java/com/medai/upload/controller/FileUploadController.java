@@ -89,4 +89,38 @@ public class FileUploadController {
         fileUploadService.deleteFile(patientId, fileId);
         return ResponseEntity.ok(ApiResponse.success("File deleted", null));
     }
+
+    /**
+     * Batch upload: accepts multiple files for the same patient and file type.
+     * Returns a list of per-file upload results (success or error per file).
+     */
+    @PostMapping(value = "/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR', 'LAB_TECH')")
+    public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> batchUpload(
+            @PathVariable UUID patientId,
+            @RequestParam("files") java.util.List<MultipartFile> files,
+            @RequestParam("fileType") FileType fileType,
+            @RequestParam(value = "description", required = false) String description) {
+
+        java.util.List<java.util.Map<String, Object>> results = new java.util.ArrayList<>();
+        for (MultipartFile file : files) {
+            java.util.Map<String, Object> entry = new java.util.LinkedHashMap<>();
+            entry.put("filename", file.getOriginalFilename());
+            try {
+                FileUploadResponse resp = fileUploadService.uploadFile(patientId, file, fileType, description);
+                entry.put("success", true);
+                entry.put("fileId", resp.getId());
+                entry.put("status", "UPLOADED");
+            } catch (Exception ex) {
+                entry.put("success", false);
+                entry.put("error", ex.getMessage());
+            }
+            results.add(entry);
+        }
+
+        long successCount = results.stream().filter(r -> Boolean.TRUE.equals(r.get("success"))).count();
+        return ResponseEntity.status(HttpStatus.MULTI_STATUS)
+                .body(ApiResponse.success(successCount + "/" + files.size() + " files uploaded", results));
+    }
 }
+

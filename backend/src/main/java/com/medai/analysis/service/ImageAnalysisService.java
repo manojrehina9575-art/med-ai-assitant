@@ -13,6 +13,7 @@ import com.medai.config.RateLimitService;
 import com.medai.upload.entity.MedicalFile;
 import com.medai.upload.repository.MedicalFileRepository;
 import com.medai.upload.service.StorageService;
+import com.medai.notification.event.AnalysisCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -20,6 +21,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.model.Media;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeType;
@@ -40,6 +42,7 @@ public class ImageAnalysisService {
     private final RateLimitService rateLimitService;
     private final AnalysisFailureRecorder failureRecorder;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @org.springframework.beans.factory.annotation.Value("${spring.ai.openai.chat.options.model:qwen/qwen3.6-27b}")
     private String modelName;
@@ -199,6 +202,9 @@ public class ImageAnalysisService {
             analysisRequestRepository.save(request);
 
             rateLimitService.recordUsage(request.getTenantId(), modelName, promptTokens, completionTokens);
+
+            // Publish event so the notification subsystem can fire without coupling this service
+            eventPublisher.publishEvent(new AnalysisCompletedEvent(this, request, request.getRequestedBy(), true));
 
             log.info("Analysis completed for request {} — modality={}, images={}, urgency={}, findings={}, tokens={}",
                     analysisRequestId, prepared.modality(), media.length, result.getUrgency(),

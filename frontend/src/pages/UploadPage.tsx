@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import {
   Upload, FileImage, Loader2, CheckCircle2, XCircle,
-  X, FileText, Microscope, Scan, Stethoscope, FileWarning,
+  X, FileText, Microscope, Scan, Stethoscope, FileWarning, Files, Plus,
 } from 'lucide-react';
 import type { Patient, FileType, MedicalFile } from '@/types';
+import api from '@/services/api';
 
 const FILE_TYPES: { value: FileType; label: string; icon: React.ElementType; color: string }[] = [
   { value: 'XRAY',             label: 'X-Ray',             icon: Scan,         color: '#06b6d4' },
@@ -42,6 +43,7 @@ const selectStyle: React.CSSProperties = {
 };
 
 export function UploadPage() {
+  const [mode, setMode] = useState<'single' | 'batch'>('single');
   const [patients, setPatients]     = useState<Patient[]>([]);
   const [selectedPatient, setSP]    = useState('');
   const [fileType, setFileType]     = useState<FileType>('XRAY');
@@ -50,6 +52,10 @@ export function UploadPage() {
   const [uploading, setUploading]   = useState(false);
   const [uploadResult, setResult]   = useState<{ success: boolean; error?: string } | null>(null);
   const [recentFiles, setRecent]    = useState<MedicalFile[]>([]);
+  // Batch state
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
+  const [batchResults, setBatchResults] = useState<{ filename: string; success: boolean; fileId?: string; error?: string }[]>([]);
+  const [batchUploading, setBatchUploading] = useState(false);
 
   useEffect(() => {
     patientService.list(0, 100).then((r) => setPatients(r.content)).catch(() => {});
@@ -63,6 +69,7 @@ export function UploadPage() {
 
   useEffect(() => { loadRecent(); }, [loadRecent]);
 
+  // Single file dropzone
   const onDrop = useCallback((files: File[]) => {
     if (files.length > 0) { setSF(files[0]); setResult(null); }
   }, []);
@@ -75,6 +82,53 @@ export function UploadPage() {
       'application/dicom': ['.dcm'],
     },
   });
+
+  // Batch dropzone
+  const onBatchDrop = useCallback((files: File[]) => {
+    setBatchFiles((prev) => {
+      const existing = new Set(prev.map((f) => f.name));
+      return [...prev, ...files.filter((f) => !existing.has(f.name))];
+    });
+    setBatchResults([]);
+  }, []);
+
+  const { getRootProps: getBatchRootProps, getInputProps: getBatchInputProps, isDragActive: isBatchDragActive } = useDropzone({
+    onDrop: onBatchDrop, maxSize: 100 * 1024 * 1024, multiple: true,
+    accept: {
+      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.dcm'],
+      'application/pdf': ['.pdf'],
+      'application/dicom': ['.dcm'],
+    },
+  });
+
+  const removeBatchFile = (index: number) => {
+    setBatchFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBatchUpload = async () => {
+    if (!selectedPatient || batchFiles.length === 0) return;
+    setBatchUploading(true);
+    setBatchResults([]);
+    const fd = new FormData();
+    batchFiles.forEach((f) => fd.append('files', f));
+    fd.append('fileType', fileType);
+    if (description) fd.append('description', description);
+    try {
+      const res = await api.post(
+        `/patients/${selectedPatient}/files/batch`,
+        fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      const data = res.data.data as { filename: string; success: boolean; fileId?: string; error?: string }[];
+      setBatchResults(data);
+      loadRecent();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      setBatchResults(batchFiles.map((f) => ({ filename: f.name, success: false, error: e.response?.data?.message || 'Upload failed' })));
+    } finally {
+      setBatchUploading(false);
+    }
+  };
 
   const handleUpload = async () => {
     if (!selectedFile || !selectedPatient) return;
@@ -98,16 +152,60 @@ export function UploadPage() {
 
   return (
     <div className="space-y-6 max-w-[1100px]">
-      <div>
-        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans' }}>Upload Studies</h1>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--clr-text-3)' }}>Upload medical files for AI-assisted analysis</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans' }}>Upload Studies</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--clr-text-3)' }}>Upload medical files for AI-assisted analysis</p>
+        </div>
+
+        {/* Mode Switcher */}
+        <div
+          className="flex p-1 rounded-xl"
+          style={{ background: 'var(--surface-2, #1a2235)', border: '1px solid var(--clr-border, #1e2d45)' }}
+        >
+          <button
+            type="button"
+            onClick={() => setMode('single')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              mode === 'single' ? 'text-white' : 'text-slate-400 hover:text-white'
+            }`}
+            style={{
+              background: mode === 'single' ? 'linear-gradient(135deg, #3b82f6, #06b6d4)' : 'transparent',
+              boxShadow: mode === 'single' ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
+            }}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Single File
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('batch')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              mode === 'batch' ? 'text-white' : 'text-slate-400 hover:text-white'
+            }`}
+            style={{
+              background: mode === 'batch' ? 'linear-gradient(135deg, #3b82f6, #06b6d4)' : 'transparent',
+              boxShadow: mode === 'batch' ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
+            }}
+          >
+            <Files className="h-3.5 w-3.5" />
+            Batch Studies
+          </button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-5 gap-5">
         {/* ── Upload form — 3 cols ── */}
         <div className="lg:col-span-3 rounded-2xl p-6 space-y-5"
           style={{ background: 'var(--surface, #111827)', border: '1px solid var(--clr-border, #1e2d45)' }}>
-          <h3 className="text-sm font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans' }}>Upload Configuration</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans' }}>
+              {mode === 'single' ? 'Single Study Upload' : 'Batch Studies Ingestion'}
+            </h3>
+            {mode === 'batch' && batchFiles.length > 0 && (
+              <span className="badge badge-blue text-[11px]">{batchFiles.length} file{batchFiles.length > 1 ? 's' : ''} queued</span>
+            )}
+          </div>
 
           {/* Patient select */}
           <div>
@@ -152,9 +250,9 @@ export function UploadPage() {
                 background: 'var(--surface-2, #1a2235)',
                 border: '1px solid var(--clr-border, #1e2d45)',
                 color: 'var(--clr-text, #f1f5f9)',
-                minHeight: 72,
+                minHeight: 64,
               }}
-              placeholder="Clinical notes, context, or relevant findings…"
+              placeholder="Clinical notes, modality specifications, or relevant patient context…"
               value={description}
               onChange={(e) => setDesc(e.target.value)}
               onFocus={(e) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.15)'; }}
@@ -162,52 +260,125 @@ export function UploadPage() {
             />
           </div>
 
-          {/* Drop zone */}
-          <div
-            {...getRootProps()}
-            className="relative flex cursor-pointer flex-col items-center justify-center rounded-xl p-8 text-center transition-all"
-            style={{
-              background: isDragActive ? 'rgba(59,130,246,0.08)' : selectedFile ? 'rgba(16,185,129,0.05)' : 'var(--surface-2, #1a2235)',
-              border: `2px dashed ${isDragActive ? '#3b82f6' : selectedFile ? '#10b981' : 'var(--clr-border-2, #243250)'}`,
-            }}
-          >
-            <input {...getInputProps()} />
-            {selectedFile ? (
-              <>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl mb-3"
-                  style={{ background: `${selectedFT?.color ?? '#10b981'}20` }}>
-                  {selectedFT ? <selectedFT.icon className="h-6 w-6" style={{ color: selectedFT.color }} /> : <FileImage className="h-6 w-6 text-emerald-400" />}
-                </div>
-                <p className="font-semibold text-white text-sm">{selectedFile.name}</p>
-                <p className="text-xs mt-1" style={{ color: 'var(--clr-text-3)' }}>{fmt(selectedFile.size)}</p>
-                <button
-                  type="button"
-                  className="mt-3 text-xs flex items-center gap-1 hover:text-red-400 transition-colors"
-                  style={{ color: 'var(--clr-text-3)' }}
-                  onClick={(e) => { e.stopPropagation(); setSF(null); }}
-                >
-                  <X className="h-3 w-3" /> Remove
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl mb-3"
+          {/* Drop zone: Single vs Batch */}
+          {mode === 'single' ? (
+            <div
+              {...getRootProps()}
+              className="relative flex cursor-pointer flex-col items-center justify-center rounded-xl p-7 text-center transition-all"
+              style={{
+                background: isDragActive ? 'rgba(59,130,246,0.08)' : selectedFile ? 'rgba(16,185,129,0.05)' : 'var(--surface-2, #1a2235)',
+                border: `2px dashed ${isDragActive ? '#3b82f6' : selectedFile ? '#10b981' : 'var(--clr-border-2, #243250)'}`,
+              }}
+            >
+              <input {...getInputProps()} />
+              {selectedFile ? (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl mb-3"
+                    style={{ background: `${selectedFT?.color ?? '#10b981'}20` }}>
+                    {selectedFT ? <selectedFT.icon className="h-6 w-6" style={{ color: selectedFT.color }} /> : <FileImage className="h-6 w-6 text-emerald-400" />}
+                  </div>
+                  <p className="font-semibold text-white text-sm">{selectedFile.name}</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--clr-text-3)' }}>{fmt(selectedFile.size)}</p>
+                  <button
+                    type="button"
+                    className="mt-3 text-xs flex items-center gap-1 hover:text-red-400 transition-colors"
+                    style={{ color: 'var(--clr-text-3)' }}
+                    onClick={(e) => { e.stopPropagation(); setSF(null); }}
+                  >
+                    <X className="h-3 w-3" /> Remove
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl mb-3"
+                    style={{ background: 'rgba(59,130,246,0.1)' }}>
+                    <Upload className="h-6 w-6" style={{ color: '#3b82f6' }} />
+                  </div>
+                  <p className="font-semibold text-white text-sm">
+                    {isDragActive ? 'Drop the file here…' : 'Drag & drop single study or click to select'}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--clr-text-3)' }}>
+                    DICOM, JPEG, PNG, PDF · Max 100 MB
+                  </p>
+                </>
+              )}
+            </div>
+          ) : (
+            /* Batch dropzone */
+            <div className="space-y-3">
+              <div
+                {...getBatchRootProps()}
+                className="relative flex cursor-pointer flex-col items-center justify-center rounded-xl p-6 text-center transition-all"
+                style={{
+                  background: isBatchDragActive ? 'rgba(59,130,246,0.08)' : 'var(--surface-2, #1a2235)',
+                  border: `2px dashed ${isBatchDragActive ? '#3b82f6' : 'var(--clr-border-2, #243250)'}`,
+                }}
+              >
+                <input {...getBatchInputProps()} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl mb-2"
                   style={{ background: 'rgba(59,130,246,0.1)' }}>
-                  <Upload className="h-6 w-6" style={{ color: '#3b82f6' }} />
+                  <Files className="h-5 w-5" style={{ color: '#3b82f6' }} />
                 </div>
                 <p className="font-semibold text-white text-sm">
-                  {isDragActive ? 'Drop the file here…' : 'Drag & drop or click to select'}
+                  {isBatchDragActive ? 'Drop files here…' : 'Drag & drop multiple files or click to add'}
                 </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--clr-text-3)' }}>
-                  DICOM, JPEG, PNG, PDF · Max 100 MB
+                <p className="text-xs mt-0.5" style={{ color: 'var(--clr-text-3)' }}>
+                  Select N studies at once · DICOM, PNG, JPG, PDF
                 </p>
-              </>
-            )}
-          </div>
+              </div>
 
-          {/* Result feedback */}
-          {uploadResult && (
-            <div className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm ${uploadResult.success ? '' : ''}`}
+              {/* Selected Batch Files List */}
+              {batchFiles.length > 0 && (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {batchFiles.map((file, idx) => {
+                    const result = batchResults.find((r) => r.filename === file.name);
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between px-3 py-2 rounded-lg text-xs"
+                        style={{
+                          background: 'var(--surface-2, #1a2235)',
+                          border: `1px solid ${result ? (result.success ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)') : 'var(--clr-border, #1e2d45)'}`,
+                        }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <FileImage className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                          <span className="text-white truncate font-medium">{file.name}</span>
+                          <span className="text-[11px] shrink-0" style={{ color: 'var(--clr-text-3)' }}>({fmt(file.size)})</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-2 shrink-0">
+                          {result ? (
+                            result.success ? (
+                              <span className="flex items-center gap-1 text-emerald-400 font-semibold text-[11px]">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Uploaded
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-red-400 font-semibold text-[11px]">
+                                <XCircle className="h-3.5 w-3.5" /> {result.error || 'Failed'}
+                              </span>
+                            )
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => removeBatchFile(idx)}
+                              className="text-slate-500 hover:text-red-400 transition-colors p-1"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Result feedback for single mode */}
+          {mode === 'single' && uploadResult && (
+            <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
               style={{
                 background: uploadResult.success ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
                 border: `1px solid ${uploadResult.success ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
@@ -220,16 +391,30 @@ export function UploadPage() {
             </div>
           )}
 
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={handleUpload}
-            disabled={!selectedFile || !selectedPatient || uploading}
-          >
-            {uploading
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
-              : <><Upload className="h-4 w-4" /> Upload File</>}
-          </Button>
+          {/* Action button */}
+          {mode === 'single' ? (
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={handleUpload}
+              disabled={!selectedFile || !selectedPatient || uploading}
+            >
+              {uploading
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
+                : <><Upload className="h-4 w-4" /> Upload File</>}
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={handleBatchUpload}
+              disabled={batchFiles.length === 0 || !selectedPatient || batchUploading}
+            >
+              {batchUploading
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing Batch ({batchFiles.length} files)…</>
+                : <><Files className="h-4 w-4" /> Upload Batch ({batchFiles.length} files)</>}
+            </Button>
+          )}
         </div>
 
         {/* ── Recent uploads — 2 cols ── */}
