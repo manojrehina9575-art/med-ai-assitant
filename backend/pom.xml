@@ -26,6 +26,7 @@
         <testcontainers.version>1.20.4</testcontainers.version>
         <dcm4che.version>5.35.0</dcm4che.version>
         <aws-sdk.version>2.29.29</aws-sdk.version>
+        <hapi-fhir.version>7.4.5</hapi-fhir.version>
 
         <!--
             Coverage floors, each set just under what the suite currently achieves (36.1% overall,
@@ -192,6 +193,21 @@
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
+        </dependency>
+
+        <!--
+            HAPI FHIR R4 model and parser. Hand-rolling FHIR JSON is the classic way to produce
+            something that looks conformant and fails a validator: the resources are fiddly,
+            cardinality and choice-type naming are easy to get subtly wrong, and interop is exactly
+            the place where "close enough" is worthless.
+
+            This matters more given the India target: ABDM is built on FHIR R4, so this layer is
+            the prerequisite for ABDM rather than a detour from it.
+        -->
+        <dependency>
+            <groupId>ca.uhn.hapi.fhir</groupId>
+            <artifactId>hapi-fhir-structures-r4</artifactId>
+            <version>${hapi-fhir.version}</version>
         </dependency>
 
         <!-- Utilities -->

@@ -1,9 +1,11 @@
 package com.medai.clinical;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medai.clinical.safety.DrugKnowledgeBase;
 import com.medai.clinical.safety.DrugSafetyFinding;
 import com.medai.clinical.safety.DrugSafetyService;
 import com.medai.clinical.safety.DrugSafetyService.ProposedMedication;
+import com.medai.terminology.client.RxNormClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -19,7 +21,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class DrugSafetyServiceTest {
 
-    private final DrugSafetyService service = new DrugSafetyService(new DrugKnowledgeBase());
+    /**
+     * RxNorm lookup is disabled so these stay hermetic and fast. The curated map is what must be
+     * correct on its own — RxNav extends coverage, it is not permitted to be load-bearing, and a
+     * suite that silently depends on a public network service is a suite that fails on a train.
+     */
+    private final DrugSafetyService service = new DrugSafetyService(
+            new DrugKnowledgeBase(),
+            new RxNormClient(new ObjectMapper(), "http://rxnav.invalid", false, 100));
 
     private static ProposedMedication med(String name, String dose, String freq) {
         return new ProposedMedication(name, dose, freq, "7 days");
@@ -273,6 +282,28 @@ class DrugSafetyServiceTest {
     @Nested
     @DisplayName("Honesty about coverage")
     class Coverage {
+
+        /**
+         * RxNorm is a US vocabulary and does not carry most Indian brand names, which is precisely
+         * why the curated map is consulted first rather than treated as a fallback. With RxNav
+         * disabled these must still resolve — if they only worked with the network up, the India
+         * deployment would be the one where drug safety quietly stopped working.
+         */
+        @Test
+        @DisplayName("Indian brand names resolve from the curated map, with no network lookup")
+        void indianBrandsResolveWithoutRxNorm() {
+            var crocin = service.assess(List.of(med("Crocin", "500mg", "QID")), List.of());
+            assertEquals(List.of("acetaminophen"), crocin.normalisedIngredients());
+            assertTrue(crocin.unrecognised().isEmpty());
+
+            var septran = service.assess(List.of(med("Septran", "800mg", "BID")), List.of("Bactrim"));
+            assertTrue(septran.requiresAcknowledgement(),
+                    "a Bactrim allergy must block Septran — both are co-trimoxazole");
+
+            var ecosprin = service.assess(List.of(med("Ecosprin", "75mg", "OD")), List.of("Ibuprofen"));
+            assertTrue(ecosprin.requiresAcknowledgement(),
+                    "an NSAID allergy must block aspirin, whatever brand it is written as");
+        }
 
         /**
          * Silence about a drug the checker does not know reads exactly like a clean bill of

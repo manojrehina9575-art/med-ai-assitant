@@ -1,5 +1,6 @@
 package com.medai.clinical.safety;
 
+import com.medai.terminology.client.RxNormClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import java.util.regex.Pattern;
 public class DrugSafetyService {
 
     private final DrugKnowledgeBase knowledgeBase;
+    private final RxNormClient rxNormClient;
 
     /**
      * One medication as written on the prescription.
@@ -70,7 +72,7 @@ public class DrugSafetyService {
         List<String> unrecognised = new ArrayList<>();
 
         for (ProposedMedication med : medications) {
-            String ingredient = knowledgeBase.normalise(med.name());
+            String ingredient = normaliseIngredient(med.name());
             ingredients.add(ingredient);
             if (!knowledgeBase.isKnown(ingredient)) {
                 unrecognised.add(med.name());
@@ -115,7 +117,7 @@ public class DrugSafetyService {
             if (allergy == null || allergy.isBlank()) {
                 continue;
             }
-            allergyIngredients.put(knowledgeBase.normalise(allergy), allergy.trim());
+            allergyIngredients.put(normaliseIngredient(allergy), allergy.trim());
         }
 
         for (int i = 0; i < ingredients.size(); i++) {
@@ -178,6 +180,32 @@ public class DrugSafetyService {
             }
         }
         return findings;
+    }
+
+    /**
+     * Resolves a written drug name to an ingredient the knowledge base understands.
+     *
+     * <p>The curated map is consulted first and RxNorm second, not the other way round. RxNorm is
+     * a US vocabulary: it will not resolve Crocin, Dolo, Ecosprin or Septran, which are among the
+     * most commonly prescribed brands in an Indian hospital and are exactly what the curated map
+     * exists to cover. RxNorm earns its place on everything else — the long tail of generics and
+     * international brands nobody will ever hand-curate.
+     *
+     * <p>An RxNorm hit is only adopted when it lands on something the knowledge base can reason
+     * about. Resolving "Augmentin" to a concept the interaction and class tables have never heard
+     * of would convert a recognised drug into an unrecognised one, which is a regression dressed
+     * as an integration.
+     */
+    private String normaliseIngredient(String writtenName) {
+        String curated = knowledgeBase.normalise(writtenName);
+        if (knowledgeBase.isKnown(curated)) {
+            return curated;
+        }
+
+        return rxNormClient.resolve(writtenName)
+                .map(concept -> knowledgeBase.normalise(concept.name()))
+                .filter(knowledgeBase::isKnown)
+                .orElse(curated);
     }
 
     /** "penicillins" and "sulfonamides" are how allergy lists are actually written. */

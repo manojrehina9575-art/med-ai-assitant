@@ -172,6 +172,17 @@ app:
       password: ${APP_RATE_LIMIT_REDIS_PASSWORD:}
   crypto:
     secret: ${APP_CRYPTO_SECRET:med-ai-aes-256-secure-secret-key-32b!}
+  billing:
+    # Invoices the period that closed today. Billing days are anchored per tenant (max 28), so this
+    # runs daily and picks up whoever is due rather than invoicing everyone on the 1st.
+    cron: ${BILLING_CRON:0 0 3 * * *}
+  terminology:
+    rxnorm:
+      # The NLM's public RxNav service: no key, no account, and no PHI in the request (a drug name
+      # only). Disable to fall back to the curated brand map alone.
+      enabled: ${RXNORM_ENABLED:true}
+      base-url: ${RXNORM_BASE_URL:https://rxnav.nlm.nih.gov/REST}
+      timeout-ms: ${RXNORM_TIMEOUT_MS:1500}
   audit:
     # Audit entries are buffered and written in batches rather than one insert per request.
     # A full queue blocks the caller briefly and then writes inline — it never drops an entry.
