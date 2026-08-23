@@ -1,6 +1,7 @@
 package com.medai.tenant;
 
 import com.medai.BaseIntegrationTest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,9 +38,26 @@ class RowLevelSecurityTest extends BaseIntegrationTest {
         return tenantId;
     }
 
+    /**
+     * Binds the tenant the way the application does, through {@link TenantContext}.
+     *
+     * <p>Issuing {@code set_config} directly would prove nothing: {@link TenantAwareDataSource}
+     * re-stamps {@code app.current_tenant} on every connection as it leaves the pool, so a value
+     * set by one statement is gone by the next — each {@code JdbcTemplate} call borrows and
+     * returns its own connection. Going through the context exercises that stamping, which is the
+     * mechanism RLS actually depends on.
+     */
     private void actAs(UUID tenantId) {
-        jdbcTemplate.execute("SELECT set_config('app.current_tenant', '"
-                             + (tenantId == null ? "" : tenantId) + "', false)");
+        if (tenantId == null) {
+            TenantContext.clear();
+        } else {
+            TenantContext.setCurrentTenantId(tenantId);
+        }
+    }
+
+    @AfterEach
+    void clearTenant() {
+        TenantContext.clear();
     }
 
     private void insertPatient(UUID tenantId, String mrn) {
@@ -106,9 +124,12 @@ class RowLevelSecurityTest extends BaseIntegrationTest {
 
         actAs(tenantB);
 
+        // Assert on the root cause, as appRoleCannotAlterSchema does: Spring wraps the driver
+        // exception and its own message carries only the failing SQL, not PostgreSQL's reason.
         assertThatThrownBy(() -> insertPatient(tenantA, "RLS-SMUGGLED-1"))
                 .as("USING alone filters reads; without WITH CHECK an insert can plant a row in "
                     + "another tenant")
+                .rootCause()
                 .hasMessageContaining("row-level security");
     }
 

@@ -6,8 +6,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -19,7 +17,6 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Testcontainers
 @ActiveProfiles("test")
 public abstract class BaseIntegrationTest {
 
@@ -27,13 +24,22 @@ public abstract class BaseIntegrationTest {
      * Must be the pgvector image, not plain postgres: V5 runs {@code CREATE EXTENSION vector} and
      * V8 creates an HNSW index, neither of which exists in {@code postgres:16-alpine}. This is the
      * same image docker-compose uses, so tests migrate against what production runs.
+     *
+     * <p>Started once per JVM in a static initializer rather than managed by {@code @Testcontainers}
+     * / {@code @Container}. That extension stops the container after every test class, but every
+     * subclass here shares one cached Spring context — so the pool kept dialling the first class's
+     * port while later classes booted fresh containers on new ones, and everything after the first
+     * class failed with "connection refused". Ryuk removes this container when the JVM exits.
      */
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"))
             .withDatabaseName("medai_test")
             .withUsername("test")
             .withPassword("test");
+
+    static {
+        postgres.start();
+    }
 
     /** Matches the application's runtime role; V11 creates it with this password. */
     protected static final String APP_DB_USERNAME = "medai_app";

@@ -197,13 +197,35 @@ class AuthControllerTest extends BaseIntegrationTest {
 
     @Test
     @Order(7)
-    @DisplayName("List tenants returns registered hospitals")
-    void listTenants_success() throws Exception {
-        mockMvc.perform(get("/api/auth/tenants"))
+    @DisplayName("Tenant lookup resolves one hospital by subdomain")
+    void findTenant_bySubdomain() throws Exception {
+        mockMvc.perform(get("/api/auth/tenants").param("subdomain", "test-hospital"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].name").value("Test Hospital"))
-                .andExpect(jsonPath("$.data[0].subdomain").value("test-hospital"));
+                .andExpect(jsonPath("$.data.name").value("Test Hospital"))
+                .andExpect(jsonPath("$.data.subdomain").value("test-hospital"));
+    }
+
+    /**
+     * The endpoint deliberately no longer lists every tenant — that was a public customer list and
+     * a credential-stuffing target list. Asking without a subdomain is a client error, not a
+     * request for everything.
+     */
+    @Test
+    @Order(8)
+    @DisplayName("Tenant lookup refuses to enumerate without a subdomain")
+    void findTenant_requiresSubdomain() throws Exception {
+        mockMvc.perform(get("/api/auth/tenants"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("Tenant lookup does not reveal whether an unknown subdomain exists")
+    void findTenant_unknownSubdomain() throws Exception {
+        mockMvc.perform(get("/api/auth/tenants").param("subdomain", "no-such-hospital"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
     }
 }
