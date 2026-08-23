@@ -41,4 +41,6 @@ public interface TenantAiUsageRepository extends JpaRepository<TenantAiUsage, Te
              WHERE tenant_id = :tenantId AND usage_date = :usageDate
             """, nativeQuery = true)
     BigDecimal findCostForDay(@Param("tenantId") UUID tenantId, @Param("usageDate") LocalDate usageDate);
+
+    java.util.Optional<TenantAiUsage> findByTenantIdAndUsageDate(UUID tenantId, LocalDate usageDate);
 }

@@ -21,6 +21,8 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
 
     Page<AnalysisRequest> findByTenantIdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
 
+    List<AnalysisRequest> findByTenantIdOrderByCreatedAtDesc(UUID tenantId);
+
     Optional<AnalysisRequest> findByIdAndTenantId(UUID id, UUID tenantId);
 
     List<AnalysisRequest> findByStatusAndRetryCountLessThan(AnalysisStatus status, Integer maxRetries);

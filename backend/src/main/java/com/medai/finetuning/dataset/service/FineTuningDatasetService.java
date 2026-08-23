@@ -2,6 +2,8 @@ package com.medai.finetuning.dataset.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medai.analysis.entity.AnalysisRequest;
+import com.medai.analysis.enums.AnalysisStatus;
+import com.medai.analysis.enums.AnalysisType;
 import com.medai.analysis.repository.AnalysisRequestRepository;
 import com.medai.compliance.consent.service.ConsentService;
 import com.medai.compliance.phi.PhiRedactionService;
@@ -41,7 +43,7 @@ public class FineTuningDatasetService {
     @Transactional(readOnly = true)
     public DatasetExportSummary exportTrainingDataset(String format, String modality, int limit) {
         UUID tenantId = TenantContext.requireTenantId();
-        List<AnalysisRequest> analyses = analysisRequestRepository.findAllByTenantIdOrderByCreatedAtDesc(tenantId);
+        List<AnalysisRequest> analyses = analysisRequestRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
 
         List<Map<String, Object>> trainingPairs = new ArrayList<>();
         int totalScanned = 0;
@@ -51,13 +53,13 @@ public class FineTuningDatasetService {
 
         for (AnalysisRequest ar : analyses) {
             totalScanned++;
-            if (!"COMPLETED".equalsIgnoreCase(ar.getStatus())) {
+            if (ar.getStatus() != AnalysisStatus.COMPLETED) {
                 continue;
             }
 
             // Filter modality if specified
             if (modality != null && !modality.isBlank() && !"ALL".equalsIgnoreCase(modality)) {
-                if (ar.getAnalysisType() == null || !ar.getAnalysisType().equalsIgnoreCase(modality)) {
+                if (ar.getAnalysisType() == null || !ar.getAnalysisType().name().equalsIgnoreCase(modality)) {
                     continue;
                 }
             }
@@ -72,7 +74,7 @@ public class FineTuningDatasetService {
             }
 
             String clinicalNotes = ar.getClinicalNotes() != null ? ar.getClinicalNotes() : "Routine evaluation";
-            String resultJson = ar.getResultJson() != null ? ar.getResultJson() : "";
+            String resultJson = ar.getResult() != null ? ar.getResult() : "";
 
             if (resultJson.isBlank()) continue;
 
