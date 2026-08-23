@@ -1,0 +1,56 @@
+global:
+  environment: production
+
+replicaCount:
+  backend: 3
+  frontend: 2
+
+image:
+  backend:
+    repository: medai-backend
+    tag: 0.1.0
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: medai-frontend
+    tag: 0.1.0
+    pullPolicy: IfNotPresent
+
+service:
+  backendPort: 8080
+  frontendPort: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: medai.hospital.internal
+  tlsSecret: medai-tls-secret
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 80
+
+resources:
+  backend:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 3Gi
+  frontend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+postgres:
+  enabled: true
+  storageSize: 50Gi
+
+redis:
+  enabled: true

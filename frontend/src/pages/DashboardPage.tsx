@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import {
-  Users, FileImage, Brain, Activity, ArrowRight,
+  Users, FileImage, Brain, ArrowRight,
   MessageSquare, Upload, BookOpen, CheckCircle2, Clock,
   TrendingUp, BarChart2, Cpu, AlertTriangle, Download,
 } from 'lucide-react';

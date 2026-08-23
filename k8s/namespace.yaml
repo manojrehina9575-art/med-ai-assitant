@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: medai-prod
+  labels:
+    environment: production
+    app.kubernetes.io/name: med-ai-assistant

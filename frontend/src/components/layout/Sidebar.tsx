@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import {
   LayoutDashboard, Users, Upload, Settings, LogOut,
   Brain, FileText, BookOpen, MessageSquare, Zap, Wand2,
+  Shield, Cpu, Activity
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
@@ -34,6 +35,14 @@ const navGroups: NavGroup[] = [
       { to: '/blood-reports', label: 'Blood & Labs',    icon: FileText,      badge: null },
       { to: '/chat',          label: 'Clinical AI Chat', icon: MessageSquare, badge: 'Memory' },
       { to: '/knowledge',     label: 'Hospital Protocols', icon: BookOpen,   badge: 'RAG' },
+    ],
+  },
+  {
+    label: 'Governance & Ops',
+    items: [
+      { to: '/compliance',    label: 'Compliance & Consent', icon: Shield,   badge: 'HIPAA' },
+      { to: '/finetuning',    label: 'Fine-Tuning & Models', icon: Cpu,      badge: 'LoRA' },
+      { to: '/observability', label: 'Observability',        icon: Activity, badge: 'Metrics' },
     ],
   },
   {

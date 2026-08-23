@@ -12,6 +12,9 @@ import { BloodReportPage } from '@/pages/BloodReportPage';
 import { KnowledgeBasePage } from '@/pages/KnowledgeBasePage';
 import { ChatPage } from '@/pages/ChatPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
+import { CompliancePage } from '@/pages/CompliancePage';
+import { FineTuningPage } from '@/pages/FineTuningPage';
+import { ObservabilityPage } from '@/pages/ObservabilityPage';
 
 export default function App() {
   return (
@@ -31,6 +34,9 @@ export default function App() {
         <Route path="/knowledge" element={<KnowledgeBasePage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:sessionId" element={<ChatPage />} />
+        <Route path="/compliance" element={<CompliancePage />} />
+        <Route path="/finetuning" element={<FineTuningPage />} />
+        <Route path="/observability" element={<ObservabilityPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

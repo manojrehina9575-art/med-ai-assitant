@@ -234,26 +234,26 @@ Each MVP is self-contained, testable, and deployable independently.
 **Goal:** LoRA fine-tuning, compliance hardening, observability, deployment.
 
 ### Backend
-- [ ] Fine-tuning pipeline:
+- [x] Fine-tuning pipeline:
   - Data preparation (anonymized medical text → training format)
   - LoRA adapter training (Llama 3 via Ollama/vLLM)
   - Model registry (store adapters per tenant)
   - A/B testing between base and fine-tuned models
-- [ ] Compliance hardening:
+- [x] Compliance hardening:
   - PHI redaction before external API calls (regex + NER)
   - Consent management API
   - Data retention policies (auto-purge after configured period)
   - Encryption at rest (AES-256) for all medical data
-- [ ] Observability:
+- [x] Observability:
   - OpenTelemetry tracing (request → LLM call → DB → response)
   - Prometheus metrics (latency, token usage, cost, error rates per tenant)
   - Grafana dashboards
   - Loki for log aggregation
-- [ ] Performance:
+- [x] Performance:
   - Redis caching for frequent LLM responses
   - Connection pooling optimization
   - Load testing (k6 / Gatling)
-- [ ] Deployment:
+- [x] Deployment:
   - Kubernetes manifests (Deployment, Service, Ingress, HPA)
   - Helm chart
   - CI/CD pipeline (GitHub Actions → build → test → deploy)

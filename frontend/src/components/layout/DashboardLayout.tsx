@@ -16,6 +16,9 @@ const pageMeta: Record<string, { title: string; sub: string }> = {
   'blood-reports': { title: 'Blood & Lab Reports',     sub: 'Laboratory analytics' },
   knowledge:    { title: 'Hospital Protocols',         sub: 'RAG knowledge base' },
   chat:         { title: 'Clinical AI Chat',           sub: 'AI-assisted decision support' },
+  compliance:   { title: 'Compliance & Consent',       sub: 'HIPAA Safe Harbor, GDPR consent & data retention' },
+  finetuning:   { title: 'Fine-Tuning & Model Registry', sub: 'LoRA adapters, training pipelines & A/B testing' },
+  observability: { title: 'System Observability',       sub: 'Prometheus metrics, latency percentiles & JVM telemetry' },
   settings:     { title: 'Settings',                   sub: 'Security & system configuration' },
 };
 

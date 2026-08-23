@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: medai-backend-config
+  namespace: medai-prod
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "medai"
+  DB_APP_USERNAME: "medai_app"
+  STORAGE_TYPE: "s3"
+  AI_BASE_URL: "https://api.groq.com/openai"
+  AI_MODEL: "qwen/qwen3.6-27b"
+  AI_DATA_AGREEMENT_IN_PLACE: "true"
+  AI_RATE_LIMIT_RPM: "60"
+  AI_RATE_LIMIT_DAILY_USD: "200.0"
+  CORS_ORIGINS: "https://medai.hospital.internal,https://app.medai-assistant.com"

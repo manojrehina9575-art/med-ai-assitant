@@ -1,0 +1,9 @@
+apiVersion: v2
+name: med-ai-assistant
+description: Production Helm Chart for Multi-Tenant Medical AI Assistant Platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Clinical Platform Team
+    email: devops@hospital.internal

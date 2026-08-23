@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "med-ai-assistant.fullname" . }}-backend
+spec:
+  ports:
+    - port: {{ .Values.service.backendPort }}
+      targetPort: {{ .Values.service.backendPort }}
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "med-ai-assistant.name" . }}-backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "med-ai-assistant.fullname" . }}-frontend
+spec:
+  ports:
+    - port: {{ .Values.service.frontendPort }}
+      targetPort: {{ .Values.service.frontendPort }}
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "med-ai-assistant.name" . }}-frontend

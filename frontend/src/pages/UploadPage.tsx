@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import {
   Upload, FileImage, Loader2, CheckCircle2, XCircle,
-  X, FileText, Microscope, Scan, Stethoscope, FileWarning, Files, Plus,
+  X, FileText, Microscope, Scan, Stethoscope, FileWarning, Files,
 } from 'lucide-react';
 import type { Patient, FileType, MedicalFile } from '@/types';
 import api from '@/services/api';

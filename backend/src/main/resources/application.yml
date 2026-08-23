@@ -146,10 +146,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when-authorized
+    prometheus:
+      enabled: true
+
+app:
+  crypto:
+    secret: ${APP_CRYPTO_SECRET:med-ai-aes-256-secure-secret-key-32b!}
+  retention:
+    cron: ${RETENTION_CRON:0 0 2 * * *}
 
 springdoc:
   api-docs:

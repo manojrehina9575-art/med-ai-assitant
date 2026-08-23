@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medai-backend
+  namespace: medai-prod
+  labels:
+    app: medai-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: medai-backend
+  template:
+    metadata:
+      labels:
+        app: medai-backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: backend
+          image: medai-backend:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: medai-backend-config
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: medai-secrets
+                  key: DB_PASSWORD
+            - name: DB_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: medai-secrets
+                  key: DB_APP_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: medai-secrets
+                  key: JWT_SECRET
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medai-secrets
+                  key: GROQ_API_KEY
+            - name: APP_CRYPTO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: medai-secrets
+                  key: APP_CRYPTO_SECRET
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "3Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: medai-prod
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: medai-backend

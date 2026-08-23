@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medai-frontend
+  namespace: medai-prod
+  labels:
+    app: medai-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: medai-frontend
+  template:
+    metadata:
+      labels:
+        app: medai-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: medai-frontend:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: medai-prod
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+  selector:
+    app: medai-frontend
