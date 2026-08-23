@@ -10,6 +10,7 @@ import com.medai.patient.repository.PatientRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.StateGraph;
+import org.bsc.langgraph4j.action.EdgeAction;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -61,8 +62,11 @@ public class ClinicalWorkflowGraph {
             graph.addEdge("plan_steps", "check_safety");
 
             // Conditional routing from check_safety
+            EdgeAction<ClinicalAgentState> checkSafetyCondition = (ClinicalAgentState state) ->
+                    "AWAITING_APPROVAL".equals(state.getStatus()) ? END : "execute_step";
+
             graph.addConditionalEdges("check_safety",
-                    edge_async(state -> "AWAITING_APPROVAL".equals(state.getStatus()) ? END : "execute_step"),
+                    edge_async(checkSafetyCondition),
                     Map.of(
                             END, END,
                             "execute_step", "execute_step"
@@ -70,8 +74,11 @@ public class ClinicalWorkflowGraph {
             );
 
             // Conditional routing from execute_step
+            EdgeAction<ClinicalAgentState> executeStepCondition = (ClinicalAgentState state) ->
+                    state.getCurrentStepIndex() < state.getPlannedSteps().size() ? "check_safety" : "synthesize_report";
+
             graph.addConditionalEdges("execute_step",
-                    edge_async(state -> state.getCurrentStepIndex() < state.getPlannedSteps().size() ? "check_safety" : "synthesize_report"),
+                    edge_async(executeStepCondition),
                     Map.of(
                             "check_safety", "check_safety",
                             "synthesize_report", "synthesize_report"

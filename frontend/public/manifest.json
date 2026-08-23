@@ -1,0 +1,16 @@
+{
+  "short_name": "MedAI",
+  "name": "Med-AI Clinical Intelligence Assistant",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0a0f1e",
+  "display": "standalone",
+  "orientation": "portrait"
+}
