@@ -141,6 +141,10 @@ app:
         "[gpt-4o]":
           input-per-million: 2.50
           output-per-million: 10.00
+  crypto:
+    secret: ${APP_CRYPTO_SECRET:med-ai-aes-256-secure-secret-key-32b!}
+  retention:
+    cron: ${RETENTION_CRON:0 0 2 * * *}
 
 management:
   endpoints:
@@ -152,12 +156,6 @@ management:
       show-details: when-authorized
     prometheus:
       enabled: true
-
-app:
-  crypto:
-    secret: ${APP_CRYPTO_SECRET:med-ai-aes-256-secure-secret-key-32b!}
-  retention:
-    cron: ${RETENTION_CRON:0 0 2 * * *}
 
 springdoc:
   api-docs:
