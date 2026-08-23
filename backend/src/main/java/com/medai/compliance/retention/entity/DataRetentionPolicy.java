@@ -24,9 +24,10 @@ public class DataRetentionPolicy {
     @Column(name = "tenant_id", nullable = false, unique = true)
     private UUID tenantId;
 
+    /** Six years. See DataRetentionService.MIN_AUDIT_RETENTION_DAYS — this is a floor, not a default. */
     @Column(name = "audit_log_retention_days", nullable = false)
     @Builder.Default
-    private int auditLogRetentionDays = 365;
+    private int auditLogRetentionDays = 2190;
 
     @Column(name = "analysis_retention_days", nullable = false)
     @Builder.Default

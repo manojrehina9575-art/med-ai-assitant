@@ -110,9 +110,29 @@ app:
     # The client refreshes silently, so this is invisible to users.
     expiration-ms: ${JWT_EXPIRATION_MS:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    # The refresh token is delivered as an httpOnly cookie rather than in the response body, so it
+    # is invisible to JavaScript and an XSS cannot steal it. Set to false ONLY for plain-HTTP local
+    # development — over the network the token would travel in clear text.
+    refresh-cookie-secure: ${JWT_REFRESH_COOKIE_SECURE:true}
   storage:
+    # 'local' is single-instance only — see StorageTypeValidator. Anything running more than one
+    # replica must use 's3', which covers any S3-compatible endpoint (AWS, Cloudflare R2, MinIO).
     type: ${STORAGE_TYPE:local}
     local-path: ${STORAGE_LOCAL_PATH:./uploads}
+    s3:
+      bucket: ${STORAGE_S3_BUCKET:}
+      region: ${STORAGE_S3_REGION:us-east-1}
+      # Leave unset for AWS. Set for R2 (https://<account>.r2.cloudflarestorage.com) or MinIO.
+      endpoint: ${STORAGE_S3_ENDPOINT:}
+      # MinIO and most self-hosted gateways need this; AWS and R2 do not.
+      path-style-access: ${STORAGE_S3_PATH_STYLE:false}
+      # Set to a customer-managed KMS key to upgrade from SSE-S3 to SSE-KMS. Objects are encrypted
+      # at rest either way — there is no unencrypted path.
+      kms-key-id: ${STORAGE_S3_KMS_KEY_ID:}
+      # Leave both unset to use the default AWS credential chain (IRSA, instance profile), which
+      # is preferable: no long-lived key to rotate or leak.
+      access-key: ${STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${STORAGE_S3_SECRET_KEY:}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
   ai:
@@ -141,8 +161,27 @@ app:
         "[gpt-4o]":
           input-per-million: 2.50
           output-per-million: 10.00
+  rate-limit:
+    # Shares the per-minute request window across instances. Leave the host blank for a
+    # single-instance deployment; anything running replicas needs it, or the effective ceiling is
+    # the configured limit times the replica count. The daily spend cap is in the database and is
+    # already correct across instances either way.
+    redis:
+      host: ${APP_RATE_LIMIT_REDIS_HOST:}
+      port: ${APP_RATE_LIMIT_REDIS_PORT:6379}
+      password: ${APP_RATE_LIMIT_REDIS_PASSWORD:}
   crypto:
     secret: ${APP_CRYPTO_SECRET:med-ai-aes-256-secure-secret-key-32b!}
+  audit:
+    # Audit entries are buffered and written in batches rather than one insert per request.
+    # A full queue blocks the caller briefly and then writes inline — it never drops an entry.
+    queue-capacity: ${AUDIT_QUEUE_CAPACITY:10000}
+    enqueue-timeout-ms: ${AUDIT_ENQUEUE_TIMEOUT_MS:2000}
+    max-batch-size: ${AUDIT_MAX_BATCH_SIZE:500}
+    flush-interval-ms: ${AUDIT_FLUSH_INTERVAL_MS:500}
+    # Monthly partitions are created this far ahead, so the DEFAULT partition stays empty.
+    partition-months-ahead: ${AUDIT_PARTITION_MONTHS_AHEAD:3}
+    partition-cron: ${AUDIT_PARTITION_CRON:0 30 1 * * *}
   retention:
     cron: ${RETENTION_CRON:0 0 2 * * *}
 

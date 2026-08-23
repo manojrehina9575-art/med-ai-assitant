@@ -1,5 +1,6 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { logout } from '@/services/api';
 import {
   LayoutDashboard, Users, Upload, Settings, LogOut,
   Brain, FileText, BookOpen, MessageSquare, Zap, Wand2,
@@ -55,12 +56,12 @@ const navGroups: NavGroup[] = [
 ];
 
 export function Sidebar() {
-  const { fullName, role, tenantName, logout } = useAuthStore();
-  const navigate = useNavigate();
+  const { fullName, role, tenantName } = useAuthStore();
 
+  // Revokes the refresh token server-side and expires the cookie, then redirects. Clearing local
+  // state alone used to leave the token valid for the rest of its seven days.
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    void logout();
   };
 
   const initials = fullName

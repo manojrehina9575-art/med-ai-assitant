@@ -39,8 +39,8 @@ export const authService = {
     return res.data.data;
   },
 
-  async refreshToken(refreshToken: string): Promise<AuthResponse> {
-    const res = await api.post<ApiResponse<AuthResponse>>('/auth/refresh', { refreshToken });
-    return res.data.data;
-  },
+  /**
+   * Session refresh and logout live in `services/api`, not here: the refresh token is an httpOnly
+   * cookie that this layer can neither read nor pass, so there is no token argument to take.
+   */
 };

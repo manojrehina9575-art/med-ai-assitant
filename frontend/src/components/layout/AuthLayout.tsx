@@ -3,7 +3,14 @@ import { useAuthStore } from '@/stores/authStore';
 import { Brain, Shield, Activity, Zap } from 'lucide-react';
 
 export function AuthLayout() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isBootstrapped } = useAuthStore();
+
+  // The session is restored from the refresh cookie on load, so until that settles we do not know
+  // whether this user is signed in. Rendering the login form first would flash it at someone who
+  // already has a session.
+  if (!isBootstrapped) {
+    return null;
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;

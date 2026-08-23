@@ -57,22 +57,9 @@ public class AsyncConfig {
         return executor;
     }
 
-    /**
-     * Separate small pool for audit writes, so a burst of analysis work can never starve the audit
-     * trail — and a slow audit write can never occupy an analysis thread.
-     */
-    @Bean("auditExecutor")
-    public ThreadPoolTaskExecutor auditExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(500);
-        executor.setThreadNamePrefix("audit-");
-        // Audit entries must not be dropped under load.
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(15);
-        executor.initialize();
-        return executor;
-    }
+    // The audit trail no longer needs a pool of its own. It used to run one @Async task per
+    // audited call on a bounded executor whose CallerRunsPolicy handed the work back to the
+    // request thread under load — which is when it hurt most. AuditLogWriter now buffers entries
+    // and a single scheduled flush drains them in batches, so there is no per-entry task to
+    // schedule and the executor this replaced would be a bean nothing asks for.
 }

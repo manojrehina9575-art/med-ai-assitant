@@ -21,7 +21,7 @@ public class RagService {
 
     private final DocumentChunkRepository chunkRepository;
     private final EmbeddingService embeddingService;
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
 
     private static final String RAG_SYSTEM_PROMPT = """
             You are an expert Hospital Clinical Intelligence Assistant for Med-AI.
@@ -88,7 +88,6 @@ public class RagService {
 
         // Call Chat LLM with grounded prompt
         String prompt = String.format(RAG_SYSTEM_PROMPT, contextBuilder.toString());
-        ChatClient chatClient = chatClientBuilder.build();
 
         String answer;
         try {

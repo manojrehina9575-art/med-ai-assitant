@@ -33,6 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TenantSession tenantSession;
+    private final RefreshTokenRevoker refreshTokenRevoker;
 
     @Transactional
     public AuthResponse registerTenant(RegisterTenantRequest request) {
@@ -111,8 +112,14 @@ public class AuthService {
         return buildAuthResponse(user, tenant);
     }
 
+    /**
+     * Creates an account for another person and returns their profile.
+     *
+     * <p>Deliberately issues no tokens. It used to return a full {@code AuthResponse}, which handed
+     * the administrator a working session for the account they had just created.
+     */
     @Transactional
-    public AuthResponse registerUser(RegisterUserRequest request) {
+    public UserResponse registerUser(RegisterUserRequest request) {
         UUID tenantId = com.medai.tenant.TenantContext.requireTenantId();
 
         if (userRepository.existsByTenantIdAndEmail(tenantId, request.getEmail())) {
@@ -133,12 +140,46 @@ public class AuthService {
         user.setTenantId(tenantId);
         user = userRepository.save(user);
 
-        Tenant tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new BadRequestException("Tenant not found"));
-
         log.info("Registered new user: {} with role {} (tenant: {})", user.getEmail(), user.getRole(), tenantId);
 
-        return buildAuthResponse(user, tenant);
+        return UserResponse.builder()
+                .id(user.getId())
+                .tenantId(tenantId)
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .specialization(user.getSpecialization())
+                .licenseNumber(user.getLicenseNumber())
+                .phone(user.getPhone())
+                .isActive(user.getIsActive())
+                .createdAt(user.getCreatedAt())
+                .build();
+    }
+
+    /**
+     * Revokes a refresh token, ending the session server-side.
+     *
+     * <p>Logout previously existed only on the client, which dropped its copy and left the token
+     * valid for the remainder of its seven days. Revoking the whole family rather than the single
+     * token is deliberate: a user logging out on a shared workstation means all of it.
+     *
+     * <p>An unknown or already-revoked token is not an error — logout must always succeed, or a
+     * user with a stale token can never clear it.
+     */
+    @Transactional
+    public void logout(String rawRefreshToken) {
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            return;
+        }
+
+        // Looking a token up by hash precedes knowing its tenant, the same cross-tenant read the
+        // refresh path performs. Scoped to this transaction.
+        tenantSession.beginMaintenance();
+
+        refreshTokenRepository.findByTokenHash(jwtService.hashToken(rawRefreshToken))
+                .ifPresent(token -> refreshTokenRevoker.revokeAllForUser(token.getUserId(), "logout"));
     }
 
     /**
@@ -160,10 +201,15 @@ public class AuthService {
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
-        // If the token was already revoked, this is a replay attack — revoke all tokens for this user
+        // A token presented after it was rotated away is a replay: either the legitimate client is
+        // retrying with a stale copy, or someone else has the token. Both mean the family is no
+        // longer trustworthy, so all of it goes.
+        //
+        // The revocation runs in its own committed transaction. Calling the repository directly
+        // here did nothing at all — the exception thrown on the next line rolled it back, so the
+        // rotated-into token that the attacker held stayed valid for its full seven days.
         if (storedToken.getRevoked()) {
-            log.warn("Refresh token replay detected for user {}. Revoking all tokens.", storedToken.getUserId());
-            refreshTokenRepository.revokeAllByUserId(storedToken.getUserId());
+            refreshTokenRevoker.revokeAllForUser(storedToken.getUserId(), "refresh token replay detected");
             throw new UnauthorizedException("Refresh token has been revoked. Please login again.");
         }
 
@@ -177,7 +223,8 @@ public class AuthService {
         // Access tokens are stateless, so deactivation only takes effect at the next refresh.
         // With a 15-minute access token that bounds the window to 15 minutes.
         if (!user.getIsActive()) {
-            refreshTokenRepository.revokeAllByUserId(user.getId());
+            // Same rollback trap as the replay branch above: this has to commit independently.
+            refreshTokenRevoker.revokeAllForUser(user.getId(), "account is deactivated");
             throw new UnauthorizedException("Account is deactivated");
         }
 

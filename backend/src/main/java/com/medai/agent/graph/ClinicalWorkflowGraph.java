@@ -28,7 +28,7 @@ public class ClinicalWorkflowGraph {
 
     private final ToolRegistry toolRegistry;
     private final PatientRepository patientRepository;
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
 
     @Value("${spring.ai.openai.chat.options.model:qwen/qwen3.6-27b}")
@@ -39,12 +39,12 @@ public class ClinicalWorkflowGraph {
     public ClinicalWorkflowGraph(
             ToolRegistry toolRegistry,
             PatientRepository patientRepository,
-            ChatClient.Builder chatClientBuilder,
+            ChatClient chatClient,
             ObjectMapper objectMapper
     ) {
         this.toolRegistry = toolRegistry;
         this.patientRepository = patientRepository;
-        this.chatClientBuilder = chatClientBuilder;
+        this.chatClient = chatClient;
         this.objectMapper = objectMapper;
         this.initGraph();
     }
@@ -141,7 +141,6 @@ public class ClinicalWorkflowGraph {
                     Do NOT wrap with markdown quotes other than standard JSON.
                     """, patientContext, toolsPrompt, String.join(", ", toolRegistry.getAllTools().stream().map(ClinicalTool::getName).toList()));
 
-            var chatClient = chatClientBuilder.build();
             String response = chatClient.prompt()
                     .system(systemPrompt)
                     .user("Clinical Goal: " + state.getGoal())

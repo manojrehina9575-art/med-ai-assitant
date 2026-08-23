@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { bootstrapSession } from '@/services/api';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LoginPage } from '@/pages/LoginPage';
@@ -17,6 +19,13 @@ import { FineTuningPage } from '@/pages/FineTuningPage';
 import { ObservabilityPage } from '@/pages/ObservabilityPage';
 
 export default function App() {
+  // Nothing about the session survives a reload in memory — by design, so no token is ever written
+  // to disk. This exchanges the httpOnly refresh cookie for a fresh access token on load, which is
+  // what keeps the user signed in across reloads. Route guards wait on `isBootstrapped`.
+  useEffect(() => {
+    void bootstrapSession();
+  }, []);
+
   return (
     <Routes>
       <Route element={<AuthLayout />}>

@@ -53,6 +53,38 @@ public class SecurityConfig {
                         .authenticationEntryPoint(securityErrorResponder)
                         .accessDeniedHandler(securityErrorResponder)
                 )
+                // The refresh token lives in an httpOnly cookie, so the remaining exposure is a
+                // script that runs on the origin and drives the API with the user's session. A
+                // Content-Security-Policy is what closes that: no third-party script can load, and
+                // no inline script executes.
+                //
+                // 'unsafe-inline' remains on style-src because Tailwind and the Radix primitives
+                // set element styles directly. Inline *styles* cannot execute code; inline
+                // *scripts* can, and script-src does not allow them.
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(String.join("; ",
+                                "default-src 'self'",
+                                "script-src 'self'",
+                                "style-src 'self' 'unsafe-inline'",
+                                "img-src 'self' data: blob:",
+                                "font-src 'self' data:",
+                                "connect-src 'self'",
+                                "frame-ancestors 'none'",
+                                "form-action 'self'",
+                                "base-uri 'self'",
+                                "object-src 'none'")))
+                        .frameOptions(frame -> frame.deny())
+                        .referrerPolicy(referrer -> referrer.policy(
+                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
+                                        .ReferrerPolicy.NO_REFERRER))
+                        // 2 years, preloadable. PHI must never travel over plain HTTP, and a
+                        // downgrade is not something the user should be able to click through.
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(63072000))
+                        .permissionsPolicy(permissions -> permissions.policy(
+                                "camera=(), microphone=(), geolocation=(), payment=(), usb=()"))
+                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

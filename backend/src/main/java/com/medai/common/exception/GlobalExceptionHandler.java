@@ -1,6 +1,7 @@
 package com.medai.common.exception;
 
 import com.medai.common.dto.ApiResponse;
+import com.medai.upload.service.StorageException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -94,6 +95,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", "60")
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /**
+     * A storage failure is never described to the client.
+     *
+     * <p>The message carries the bucket name, the endpoint, and sometimes the credential identity
+     * in use — none of which a caller needs, and all of which are useful to one probing the
+     * deployment. The detail goes to the log; the client gets a fixed sentence.
+     */
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<ApiResponse<Void>> handleStorage(StorageException ex) {
+        log.error("Storage operation failed", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("The file could not be read or written. Please try again."));
     }
 
     @ExceptionHandler(Exception.class)

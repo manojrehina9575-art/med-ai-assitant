@@ -47,6 +47,32 @@ public class Prescription {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    /**
+     * CLEAR, WARNING, or OVERRIDDEN. A prescription cannot reach the table in a contraindicated
+     * state — {@code WritePrescriptionTool} refuses to write one — so OVERRIDDEN is the strongest
+     * value here, and V16 constrains it to carry attribution.
+     */
+    @Column(name = "safety_status", nullable = false, length = 30)
+    @Builder.Default
+    private String safetyStatus = "CLEAR";
+
+    /**
+     * The {@code DrugSafetyService} findings as of the moment of writing, serialised verbatim.
+     * Re-running the checker later answers a different question: the knowledge base will have
+     * changed, and what was known at the time of prescribing is what matters afterwards.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "safety_findings", nullable = false, columnDefinition = "jsonb")
+    @Builder.Default
+    private String safetyFindings = "[]";
+
+    /** The prescriber who accepted a blocking finding. Never null when status is OVERRIDDEN. */
+    @Column(name = "acknowledged_by")
+    private UUID acknowledgedBy;
+
+    @Column(name = "acknowledged_at")
+    private Instant acknowledgedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

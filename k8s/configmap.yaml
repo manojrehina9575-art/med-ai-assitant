@@ -9,10 +9,21 @@ data:
   DB_PORT: "5432"
   DB_NAME: "medai"
   DB_APP_USERNAME: "medai_app"
+  # Object storage is mandatory here: the backend Deployment runs multiple replicas, and the
+  # 'local' backend writes to each pod's own filesystem. Set STORAGE_S3_BUCKET before deploying —
+  # the application refuses to start without it rather than losing files quietly.
   STORAGE_TYPE: "s3"
+  STORAGE_S3_BUCKET: "CHANGE-ME-medai-phi-bucket"
+  STORAGE_S3_REGION: "us-east-1"
+  STORAGE_S3_PATH_STYLE: "false"
   AI_BASE_URL: "https://api.groq.com/openai"
   AI_MODEL: "qwen/qwen3.6-27b"
   AI_DATA_AGREEMENT_IN_PLACE: "true"
   AI_RATE_LIMIT_RPM: "60"
+  # Points the request-rate window at the Redis Deployment in redis-deployment.yaml, which was
+  # previously deployed and never connected to by anything. Without this the window is
+  # per-instance and the real ceiling is 60 x replicas.
+  APP_RATE_LIMIT_REDIS_HOST: "redis-service"
+  APP_RATE_LIMIT_REDIS_PORT: "6379"
   AI_RATE_LIMIT_DAILY_USD: "200.0"
   CORS_ORIGINS: "https://medai.hospital.internal,https://app.medai-assistant.com"

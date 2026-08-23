@@ -37,9 +37,26 @@ jobs:
           cache: maven
 
       - name: Run Flyway & Unit Tests
+        # Points the tests at the service container above. Without these the suite ignored it and
+        # started a second database through Testcontainers — two Postgres instances per run, one of
+        # them unused.
+        env:
+          MEDAI_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/medai
+          MEDAI_TEST_DB_USER: medai
+          MEDAI_TEST_DB_PASSWORD: medai_secret
+        # `verify`, not `test`: that is the phase the JaCoCo coverage ratchet binds to, so
+        # running `test` would produce the report and never check it.
         run: |
           cd backend
-          mvn clean test --batch-mode
+          mvn clean verify --batch-mode
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: backend/target/site/jacoco/
+          if-no-files-found: warn
 
   frontend-build-and-test:
     name: Frontend Build & Typecheck

@@ -17,15 +17,15 @@ import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 /**
- * Filesystem-backed storage.
+ * Filesystem-backed storage. Single-instance only.
  *
- * <p>Registered for any {@code app.storage.type} other than an explicitly supported remote backend.
- * Previously this bean was conditional on {@code local} and there was no other implementation, so
- * setting {@code STORAGE_TYPE=s3} — as the README suggested for production — left the context with
- * no {@code StorageService} at all and the application failed to start with a missing-bean error.
- * {@link StorageTypeValidator} now rejects unsupported values at startup with an explanation.
+ * <p>Writes to the local disk of whichever process is serving the request, so it is correct for
+ * exactly one instance and silently wrong for more than one: the upload lands on one pod and the
+ * download is routed to another, which has never seen the file. {@link StorageTypeValidator} says
+ * this loudly at startup, and {@link S3StorageService} is the answer for anything replicated.
  */
 @Service
+@ConditionalOnProperty(name = "app.storage.type", havingValue = "local", matchIfMissing = true)
 @Slf4j
 public class LocalStorageService implements StorageService {
 
@@ -36,7 +36,7 @@ public class LocalStorageService implements StorageService {
         try {
             Files.createDirectories(this.rootPath);
         } catch (IOException e) {
-            throw new RuntimeException("Could not create upload directory: " + rootPath, e);
+            throw new StorageException("Could not create upload directory: " + rootPath, e);
         }
     }
 
@@ -67,7 +67,7 @@ public class LocalStorageService implements StorageService {
             log.info("Stored file: {}", relativePath);
             return relativePath;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to store file: " + fileName, e);
+            throw new StorageException("Failed to store file: " + fileName, e);
         }
     }
 
@@ -77,7 +77,7 @@ public class LocalStorageService implements StorageService {
             Path filePath = resolveWithinRoot(storagePath);
             return Files.newInputStream(filePath);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to retrieve file: " + storagePath, e);
+            throw new StorageException("Failed to retrieve file: " + storagePath, e);
         }
     }
 
@@ -88,7 +88,7 @@ public class LocalStorageService implements StorageService {
             Files.deleteIfExists(filePath);
             log.info("Deleted file: {}", storagePath);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to delete file: " + storagePath, e);
+            throw new StorageException("Failed to delete file: " + storagePath, e);
         }
     }
 
@@ -102,7 +102,7 @@ public class LocalStorageService implements StorageService {
     public Resource retrieveAsResource(String storagePath) {
         Path filePath = resolveWithinRoot(storagePath);
         if (!Files.exists(filePath)) {
-            throw new RuntimeException("File not found: " + storagePath);
+            throw new StorageException("File not found: " + storagePath);
         }
         return new FileSystemResource(filePath);
     }

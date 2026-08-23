@@ -1,15 +1,10 @@
 package com.medai.audit.service;
 
-import com.medai.audit.entity.AuditLog;
-import com.medai.audit.repository.AuditLogRepository;
-import com.medai.tenant.TenantSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,44 +13,32 @@ import java.util.UUID;
 @Slf4j
 public class AuditService {
 
-    private final AuditLogRepository auditLogRepository;
-    private final TenantSession tenantSession;
+    private final AuditLogWriter writer;
 
     /**
      * Records an audited action.
      *
-     * <p>The tenant is passed in rather than read from {@code TenantContext} inside this method:
-     * because the write is {@code @Async} it runs on a different thread, where the caller's
-     * ThreadLocal does not exist. Reading it here always produced null, and the resulting insert
-     * violated the NOT NULL constraint — so every audit write would have failed silently even
-     * once something called this.
+     * <p>Hands the entry to {@link AuditLogWriter} and returns. This used to be an {@code @Async}
+     * method that opened its own transaction, bound the tenant with a {@code set_config} round
+     * trip, and inserted a single row — three round trips and a pooled connection for every
+     * controller call in the application, reads included. Under load the audit executor saturated
+     * and {@code CallerRunsPolicy} handed all of that back to the request thread, so the cost
+     * landed on clinicians exactly when the system was busiest.
+     *
+     * <p>The tenant is still passed in rather than read from {@code TenantContext}: the write
+     * happens on the flusher thread, where the caller's ThreadLocal does not exist.
      */
-    @Async("auditExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(UUID tenantId, UUID userId, String action, String entityType, UUID entityId,
                        Map<String, Object> details, String ipAddress, String userAgent) {
         if (tenantId == null) {
             return;
         }
-        try {
-            // Row-level security applies to this insert too, and this thread has no tenant bound.
-            tenantSession.bind(tenantId);
 
-            auditLogRepository.save(AuditLog.builder()
-                    .tenantId(tenantId)
-                    .userId(userId)
-                    .action(action)
-                    .entityType(entityType)
-                    .entityId(entityId)
-                    .details(details)
-                    .ipAddress(ipAddress)
-                    .userAgent(userAgent)
-                    .build());
-        } catch (Exception e) {
-            // Never fail a clinical operation because its audit row could not be written, but do
-            // make the gap loud — a silent audit gap is the thing an investigation cannot recover from.
-            log.error("AUDIT WRITE FAILED action={} entity={}/{} tenant={} user={}: {}",
-                    action, entityType, entityId, tenantId, userId, e.getMessage(), e);
-        }
+        writer.submit(new AuditLogWriter.Entry(
+                tenantId, userId, action, entityType, entityId,
+                details, ipAddress, userAgent,
+                // Stamped here, not at insert time: the entry records when the action happened,
+                // not when the buffer happened to be flushed.
+                Instant.now()));
     }
 }

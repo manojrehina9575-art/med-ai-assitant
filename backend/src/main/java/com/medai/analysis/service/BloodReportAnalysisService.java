@@ -33,7 +33,7 @@ import java.util.UUID;
 @Slf4j
 public class BloodReportAnalysisService {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
     private final AnalysisRequestRepository analysisRequestRepository;
     private final MedicalFileRepository medicalFileRepository;
     private final StorageService storageService;
@@ -144,7 +144,7 @@ public class BloodReportAnalysisService {
                     .map(image -> new Media(prepared.mimeType(), image))
                     .toArray(Media[]::new);
 
-            ChatResponse response = chatClientBuilder.build().prompt()
+            ChatResponse response = chatClient.prompt()
                     .options(jsonOptions)
                     .user(u -> {
                         u.text(prompt.toString());

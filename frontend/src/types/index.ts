@@ -22,7 +22,7 @@ export type UploadStatus = 'UPLOADING' | 'UPLOADED' | 'PROCESSING' | 'COMPLETED'
 
 export interface AuthResponse {
   accessToken: string;
-  refreshToken: string;
+  /** No refreshToken here on purpose — it is an httpOnly cookie the client never sees. */
   tokenType: string;
   expiresIn: number;
   userId: string;

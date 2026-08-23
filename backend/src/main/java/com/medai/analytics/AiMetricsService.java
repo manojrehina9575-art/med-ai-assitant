@@ -63,6 +63,55 @@ public class AiMetricsService {
         }
     }
 
+    /**
+     * Records a chat turn's outcome.
+     *
+     * <p>A failed model call used to be persisted as an ordinary assistant message, so it counted
+     * as a success everywhere and the error rate read zero no matter how much was failing. This is
+     * the counter that makes a bad provider visible.
+     */
+    public void recordChatTurn(String tenantId, String model, String outcome, long latencyMs) {
+        try {
+            Counter.builder("medai.chat.turns.total")
+                    .tag("tenant", tenantId != null ? tenantId : "unknown")
+                    .tag("model", model != null ? model : "default")
+                    .tag("outcome", outcome)
+                    .description("Chat turns by outcome (SUCCESS, FAILED)")
+                    .register(meterRegistry)
+                    .increment();
+
+            Timer.builder("medai.chat.latency")
+                    .tag("tenant", tenantId != null ? tenantId : "unknown")
+                    .tag("model", model != null ? model : "default")
+                    .tag("outcome", outcome)
+                    .publishPercentiles(0.5, 0.95, 0.99)
+                    .register(meterRegistry)
+                    .record(latencyMs, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.warn("Failed to record chat metric: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Records an output-guardrail finding — an ungrounded dose, a fabricated citation index.
+     *
+     * <p>These are the failures worth alerting on: unlike a provider error, the model returns
+     * something that looks entirely normal.
+     */
+    public void recordGuardrailFinding(String tenantId, String stage, String code) {
+        try {
+            Counter.builder("medai.guardrail.findings.total")
+                    .tag("tenant", tenantId != null ? tenantId : "unknown")
+                    .tag("stage", stage)
+                    .tag("code", code)
+                    .description("Guardrail findings by stage (INPUT, OUTPUT) and code")
+                    .register(meterRegistry)
+                    .increment();
+        } catch (Exception e) {
+            log.warn("Failed to record guardrail metric: {}", e.getMessage());
+        }
+    }
+
     public void recordPhiRedaction(String tenantId, String entityType, int count) {
         try {
             Counter.builder("medai.phi.redactions.total")

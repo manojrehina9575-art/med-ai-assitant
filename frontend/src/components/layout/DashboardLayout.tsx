@@ -33,7 +33,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function DashboardLayout() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isBootstrapped } = useAuthStore();
   const location   = useLocation();
   const navigate   = useNavigate();
   const searchRef  = useRef<HTMLDivElement>(null);
@@ -94,6 +94,9 @@ export function DashboardLayout() {
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  // Wait for the refresh-cookie exchange before deciding. Without this a page reload bounces
+  // a signed-in user to /login for the duration of the round trip.
+  if (!isBootstrapped) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const segment = location.pathname.split('/').filter(Boolean)[0] || 'dashboard';

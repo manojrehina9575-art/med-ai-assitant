@@ -25,6 +25,16 @@
         <langgraph4j.version>1.8.24</langgraph4j.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <dcm4che.version>5.35.0</dcm4che.version>
+        <aws-sdk.version>2.29.29</aws-sdk.version>
+
+        <!--
+            Coverage floors, each set just under what the suite currently achieves (36.1% overall,
+            98.5% / 97.3% / 86.1% across the three safety packages). Ratchet upward as the suite
+            grows; do not lower one to make a build pass — that converts the gate back into a
+            decoration.
+        -->
+        <jacoco.min.instruction>0.34</jacoco.min.instruction>
+        <jacoco.min.safety>0.85</jacoco.min.safety>
     </properties>
 
     <dependencies>
@@ -150,6 +160,40 @@
             <version>${dcm4che.version}</version>
         </dependency>
 
+        <!--
+            Object storage. Any S3-compatible endpoint works (AWS S3, Cloudflare R2, MinIO), which
+            matters because a hospital deployment often has to keep PHI on infrastructure it owns.
+            Local disk cannot be used with more than one instance — see StorageTypeValidator.
+        -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${aws-sdk.version}</version>
+            <exclusions>
+                <!-- Netty's async client is unused: every call here is blocking, on a virtual thread. -->
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>apache-client</artifactId>
+            <version>${aws-sdk.version}</version>
+        </dependency>
+
+        <!--
+            Redis, for the cross-instance request-rate window (see RateLimitService). Raw Lettuce
+            rather than spring-boot-starter-data-redis on purpose: the starter auto-configures a
+            template, a cache manager and a health indicator that reports DOWN whenever Redis is
+            absent, and Redis is optional here. Version is managed by the Spring Boot BOM.
+        -->
+        <dependency>
+            <groupId>io.lettuce</groupId>
+            <artifactId>lettuce-core</artifactId>
+        </dependency>
+
         <!-- Utilities -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -233,6 +277,78 @@
 
     <build>
         <plugins>
+            <!--
+                Coverage, as a ratchet rather than a target. The threshold below is set just under
+                what the suite currently achieves: its job is to make a drop fail the build, not to
+                chase a number. Raise it when coverage rises; never lower it to make a build pass.
+
+                Five test classes covered 209 source files before this, and nothing at all covered
+                the guardrails, the drug-safety checks, PHI redaction or retention — every place
+                where a silent defect is a compliance or a patient-safety event rather than a
+                visible crash.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>ratchet</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.min.instruction}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                                <!--
+                                    The safety-critical packages are held to a real bar, not to the
+                                    project-wide floor. A regression here is the kind that reaches
+                                    a patient.
+                                -->
+                                <rule>
+                                    <element>PACKAGE</element>
+                                    <includes>
+                                        <include>com.medai.clinical.safety</include>
+                                        <include>com.medai.chat.guardrail</include>
+                                        <include>com.medai.compliance.phi</include>
+                                    </includes>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.min.safety}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

@@ -1,6 +1,7 @@
 package com.medai.config;
 
 import com.medai.common.exception.RateLimitExceededException;
+import com.medai.config.ratelimit.RequestRateWindow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -8,13 +9,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Per-tenant limits on AI analysis: a request rate and a daily spend cap.
@@ -23,9 +20,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * and is shared by every instance. It used to live in a map, which meant a restart handed every
  * tenant a fresh budget and a second instance doubled the ceiling.
  *
- * <p>The request-per-minute window is still in memory, and therefore still per-instance. That is a
- * deliberate trade: it is a burst guard rather than a spend control, and making it correct across
- * instances needs Redis. The spend cap — the one that costs money to get wrong — is authoritative.
+ * <p>The request-per-minute window is shared through Redis when one is configured, and falls back
+ * to a per-instance counter when it is not — see {@link RequestRateWindow}. Per-instance was the
+ * only option before, which meant the Kubernetes HPA scaling to ten replicas raised the real
+ * ceiling tenfold against a limit that looked exact in the configuration file.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,8 +33,7 @@ public class RateLimitService {
     private final RateLimitConfig config;
     private final ModelPricing modelPricing;
     private final TenantAiUsageRepository usageRepository;
-
-    private final Map<UUID, RateWindow> requestWindows = new ConcurrentHashMap<>();
+    private final RequestRateWindow requestWindow;
 
     /** @throws RateLimitExceededException if the tenant is over either limit */
     public void checkRateLimit(UUID tenantId) {
@@ -72,12 +69,7 @@ public class RateLimitService {
     }
 
     private void checkRequestLimit(UUID tenantId) {
-        RateWindow window = requestWindows.compute(tenantId, (k, existing) -> {
-            Instant now = Instant.now();
-            return (existing == null || existing.isExpired(now)) ? new RateWindow(now) : existing;
-        });
-
-        int count = window.incrementAndGet();
+        int count = requestWindow.incrementAndCount(tenantId);
         if (count > config.getMaxRequestsPerMinute()) {
             log.warn("Rate limit exceeded for tenant {} ({} requests/min, limit: {})",
                     tenantId, count, config.getMaxRequestsPerMinute());
@@ -117,21 +109,4 @@ public class RateLimitService {
         return LocalDate.now(ZoneOffset.UTC);
     }
 
-    /** Fixed one-minute window for request count. */
-    private static final class RateWindow {
-        private final Instant windowStart;
-        private final AtomicInteger count = new AtomicInteger(0);
-
-        RateWindow(Instant windowStart) {
-            this.windowStart = windowStart;
-        }
-
-        boolean isExpired(Instant now) {
-            return now.isAfter(windowStart.plusSeconds(60));
-        }
-
-        int incrementAndGet() {
-            return count.incrementAndGet();
-        }
-    }
 }

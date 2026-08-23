@@ -3,6 +3,8 @@ package com.medai.auth;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medai.BaseIntegrationTest;
+import com.medai.auth.security.RefreshTokenCookie;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -15,7 +17,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Integration tests for authentication endpoints.
- * Tests tenant registration, login, token refresh rotation, and error cases.
+ *
+ * <p>Covers tenant registration, login, refresh-token rotation and replay detection, logout, and
+ * the error cases. Every test that touches a refresh token now goes through the httpOnly cookie:
+ * the token is no longer in the response body, and each assertion below checks that too, because
+ * a regression that puts it back would otherwise be invisible.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AuthControllerTest extends BaseIntegrationTest {
@@ -28,7 +34,17 @@ class AuthControllerTest extends BaseIntegrationTest {
 
     private static String tenantId;
     private static String accessToken;
-    private static String refreshToken;
+    private static Cookie refreshCookie;
+
+    /** Pulls the refresh cookie out of a response, failing the test if the server did not set one. */
+    private static Cookie refreshCookieFrom(MvcResult result) {
+        Cookie cookie = result.getResponse().getCookie(RefreshTokenCookie.NAME);
+        Assertions.assertNotNull(cookie, "Expected a " + RefreshTokenCookie.NAME + " cookie");
+        Assertions.assertTrue(cookie.isHttpOnly(), "Refresh cookie must be httpOnly");
+        Assertions.assertNotNull(cookie.getValue());
+        Assertions.assertFalse(cookie.getValue().isBlank());
+        return cookie;
+    }
 
     @Test
     @Order(1)
@@ -54,7 +70,8 @@ class AuthControllerTest extends BaseIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                // The refresh token must never appear in the body — it is cookie-only.
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
                 .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.data.email").value("admin@testhospital.com"))
                 .andExpect(jsonPath("$.data.role").value("HOSPITAL_ADMIN"))
@@ -65,7 +82,7 @@ class AuthControllerTest extends BaseIntegrationTest {
                 .get("data");
         tenantId = responseData.get("tenantId").asText();
         accessToken = responseData.get("accessToken").asText();
-        refreshToken = responseData.get("refreshToken").asText();
+        refreshCookie = refreshCookieFrom(result);
     }
 
     @Test
@@ -109,14 +126,14 @@ class AuthControllerTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
                 .andReturn();
 
         // Update tokens for subsequent tests
         JsonNode responseData = objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("data");
         accessToken = responseData.get("accessToken").asText();
-        refreshToken = responseData.get("refreshToken").asText();
+        refreshCookie = refreshCookieFrom(result);
     }
 
     @Test
@@ -140,48 +157,79 @@ class AuthControllerTest extends BaseIntegrationTest {
 
     @Test
     @Order(5)
-    @DisplayName("Refresh token rotation — returns new token pair and invalidates old token")
+    @DisplayName("Refresh rotates the cookie and revokes the presented token")
     void refreshToken_rotation() throws Exception {
-        String request = String.format("""
-                {
-                    "refreshToken": "%s"
-                }
-                """, refreshToken);
+        Cookie presented = refreshCookie;
 
-        MvcResult result = mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
+        MvcResult result = mockMvc.perform(post("/api/auth/refresh").cookie(presented))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
                 .andReturn();
 
-        JsonNode responseData = objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("data");
+        Cookie rotated = refreshCookieFrom(result);
+        Assertions.assertNotEquals(presented.getValue(), rotated.getValue(),
+                "Refresh must issue a new token, not return the same one");
 
-        String newRefreshToken = responseData.get("refreshToken").asText();
+        // Replaying the old cookie is treated as theft: rejected, and the cookie is cleared so the
+        // browser stops resending a token that will never work again.
+        mockMvc.perform(post("/api/auth/refresh").cookie(presented))
+                .andExpect(status().isUnauthorized())
+                .andExpect(cookie().maxAge(RefreshTokenCookie.NAME, 0));
 
-        // Old refresh token should no longer work (it was revoked)
-        String replayRequest = String.format("""
-                {
-                    "refreshToken": "%s"
-                }
-                """, refreshToken);
+        refreshCookie = rotated;
+    }
 
-        mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(replayRequest))
+    /**
+     * Replay detection revokes the whole family, so the token issued in test 5 is dead too. This
+     * is the intended behaviour — it is what makes a stolen token useless rather than merely
+     * single-use — so the session has to be re-established before the tests that follow.
+     */
+    @Test
+    @Order(6)
+    @DisplayName("Replay revokes the whole token family")
+    void refreshToken_replayRevokesFamily() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isUnauthorized());
 
-        // Update for any subsequent tests
-        refreshToken = newRefreshToken;
+        String request = String.format("""
+                {
+                    "tenantId": "%s",
+                    "email": "admin@testhospital.com",
+                    "password": "SecurePass123!"
+                }
+                """, tenantId);
+
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        accessToken = objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("accessToken").asText();
+        refreshCookie = refreshCookieFrom(result);
     }
 
     @Test
-    @Order(6)
-    @DisplayName("Invalid refresh token returns 401")
-    void refreshToken_invalid() throws Exception {
+    @Order(7)
+    @DisplayName("Refresh with no cookie returns 401")
+    void refreshToken_missingCookie() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    /**
+     * A refresh token in the request body is ignored entirely. Accepting one would restore exactly
+     * the exposure the cookie removes, since a script able to post a token is a script able to
+     * hold one.
+     */
+    @Test
+    @Order(8)
+    @DisplayName("Refresh ignores a token supplied in the body")
+    void refreshToken_bodyIsIgnored() throws Exception {
         String request = """
                 {
                     "refreshToken": "completely-invalid-token-value"
@@ -191,12 +239,45 @@ class AuthControllerTest extends BaseIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("Invalid refresh cookie returns 401")
+    void refreshToken_invalid() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie(RefreshTokenCookie.NAME, "completely-invalid-token-value")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
-    @Order(7)
+    @Order(10)
+    @DisplayName("Logout revokes the session server-side and expires the cookie")
+    void logout_revokesSession() throws Exception {
+        Cookie active = refreshCookie;
+
+        mockMvc.perform(post("/api/auth/logout").cookie(active))
+                .andExpect(status().isOk())
+                .andExpect(cookie().maxAge(RefreshTokenCookie.NAME, 0));
+
+        // The token is dead on the server, not merely dropped by the client — which is what
+        // "logout" meant before, when the token stayed valid for the rest of its seven days.
+        mockMvc.perform(post("/api/auth/refresh").cookie(active))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("Logout without a session still succeeds")
+    void logout_withoutCookie() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @Order(12)
     @DisplayName("Tenant lookup resolves one hospital by subdomain")
     void findTenant_bySubdomain() throws Exception {
         mockMvc.perform(get("/api/auth/tenants").param("subdomain", "test-hospital"))
@@ -212,7 +293,7 @@ class AuthControllerTest extends BaseIntegrationTest {
      * request for everything.
      */
     @Test
-    @Order(8)
+    @Order(13)
     @DisplayName("Tenant lookup refuses to enumerate without a subdomain")
     void findTenant_requiresSubdomain() throws Exception {
         mockMvc.perform(get("/api/auth/tenants"))
@@ -221,7 +302,7 @@ class AuthControllerTest extends BaseIntegrationTest {
     }
 
     @Test
-    @Order(9)
+    @Order(14)
     @DisplayName("Tenant lookup does not reveal whether an unknown subdomain exists")
     void findTenant_unknownSubdomain() throws Exception {
         mockMvc.perform(get("/api/auth/tenants").param("subdomain", "no-such-hospital"))

@@ -6,6 +6,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // The refresh token is an httpOnly cookie now, so the browser has to be allowed to send it.
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -17,9 +19,11 @@ api.interceptors.request.use((config) => {
 });
 
 /**
- * Access tokens now last 15 minutes instead of 24 hours, so the client has to refresh them.
- * Previously a 401 logged the user straight out, which meant the backend's refresh-token rotation
- * — replay detection and all — was never once exercised from the UI.
+ * Access tokens last 15 minutes, so the client has to refresh them.
+ *
+ * The refresh token itself is never in JavaScript's hands: it is an httpOnly cookie scoped to
+ * /api/auth, which the browser attaches to the refresh call and to nothing else. That is why
+ * `refreshAccessToken` sends no body — there is nothing to send, which is the point.
  *
  * A single shared promise guards the refresh so that N requests failing at the same moment produce
  * one refresh call, not N. Getting this wrong is how rotation turns into a self-inflicted lockout:
@@ -28,24 +32,56 @@ api.interceptors.request.use((config) => {
  */
 let refreshInFlight: Promise<string> | null = null;
 
-function logoutAndRedirect() {
-  useAuthStore.getState().logout();
+function clearSessionAndRedirect() {
+  useAuthStore.getState().clear();
   if (window.location.pathname !== '/login') {
     window.location.href = '/login';
   }
 }
 
 async function refreshAccessToken(): Promise<string> {
-  const { refreshToken, setAuth } = useAuthStore.getState();
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
-
   // A bare axios call, not `api`: this must not recurse through these interceptors.
-  const response = await axios.post('/api/auth/refresh', { refreshToken });
+  const response = await axios.post('/api/auth/refresh', null, { withCredentials: true });
   const auth = response.data.data;
-  setAuth(auth);
+  useAuthStore.getState().setAuth(auth);
   return auth.accessToken;
+}
+
+function startRefresh(): Promise<string> {
+  refreshInFlight =
+    refreshInFlight ??
+    refreshAccessToken().finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+/**
+ * Restores the session on page load.
+ *
+ * Nothing survives a reload in memory, so the app asks the server whether the refresh cookie is
+ * still good. Success gives a fresh access token and the user's profile; failure just means they
+ * are signed out. Either way the store is marked bootstrapped, which is what stops the route
+ * guards redirecting to /login during the round trip.
+ */
+export async function bootstrapSession(): Promise<void> {
+  try {
+    await startRefresh();
+  } catch {
+    useAuthStore.getState().clear();
+  } finally {
+    useAuthStore.getState().setBootstrapped();
+  }
+}
+
+/** Revokes the session server-side, then clears local state. */
+export async function logout(): Promise<void> {
+  try {
+    await axios.post('/api/auth/logout', null, { withCredentials: true });
+  } catch {
+    // A failed revoke must not trap the user in a session they asked to leave.
+  }
+  clearSessionAndRedirect();
 }
 
 api.interceptors.response.use(
@@ -53,10 +89,14 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const request = error.config as (AxiosRequestConfig & { _retried?: boolean }) | undefined;
 
-    const isAuthCall = request?.url?.includes('/auth/refresh') || request?.url?.includes('/auth/login');
+    const isAuthCall =
+      request?.url?.includes('/auth/refresh') ||
+      request?.url?.includes('/auth/login') ||
+      request?.url?.includes('/auth/logout');
+
     if (error.response?.status !== 401 || !request || request._retried || isAuthCall) {
       if (error.response?.status === 401 && isAuthCall) {
-        logoutAndRedirect();
+        clearSessionAndRedirect();
       }
       return Promise.reject(error);
     }
@@ -64,15 +104,11 @@ api.interceptors.response.use(
     request._retried = true;
 
     try {
-      refreshInFlight = refreshInFlight ?? refreshAccessToken().finally(() => {
-        refreshInFlight = null;
-      });
-      const token = await refreshInFlight;
-
+      const token = await startRefresh();
       request.headers = { ...request.headers, Authorization: `Bearer ${token}` };
       return api(request);
     } catch {
-      logoutAndRedirect();
+      clearSessionAndRedirect();
       return Promise.reject(error);
     }
   }

@@ -32,7 +32,7 @@ import java.util.UUID;
 @Slf4j
 public class CombinedAnalysisService {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
     private final AnalysisRequestRepository analysisRequestRepository;
     private final PatientRepository patientRepository;
     private final RateLimitService rateLimitService;
@@ -163,7 +163,7 @@ public class CombinedAnalysisService {
                     .withResponseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
                     .build();
 
-            ChatResponse response = chatClientBuilder.build().prompt()
+            ChatResponse response = chatClient.prompt()
                     .options(jsonOptions)
                     .user(prompt)
                     .call()

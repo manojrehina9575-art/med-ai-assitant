@@ -27,7 +27,21 @@ public class ChatContextBuilderService {
     private final EmbeddingService embeddingService;
     private final AnalysisRequestRepository analysisRepository;
 
-    public record BuiltContext(String systemPrompt, List<ChatCitationDto> citations) {}
+    /**
+     * @param systemPrompt  the assembled prompt sent to the model
+     * @param citations     the retrieved protocol chunks, in citation order
+     * @param groundingText every fact the model was actually given — patient context plus retrieved
+     *                      protocol text. {@code ChatOutputGuardrailService} checks the model's
+     *                      numeric claims against this: a dose that appears in the answer but
+     *                      nowhere in here was not read off a hospital protocol, it was recalled.
+     */
+    public record BuiltContext(String systemPrompt, List<ChatCitationDto> citations, String groundingText) {
+
+        /** True when at least one hospital protocol was retrieved for this turn. */
+        public boolean hasProtocolGrounding() {
+            return !citations.isEmpty();
+        }
+    }
 
     public BuiltContext buildContext(
             UUID tenantId,
@@ -36,6 +50,9 @@ public class ChatContextBuilderService {
             boolean includeRag
     ) {
         StringBuilder sb = new StringBuilder();
+        // Accumulates only the factual material — never the instructions — so the output guardrail
+        // compares the model's claims against what it was told, not against its own prompt.
+        StringBuilder grounding = new StringBuilder();
         sb.append("""
                 You are Med-AI, a highly qualified Clinical Diagnostic Intelligence Assistant.
                 Your role is to assist healthcare practitioners (physicians, radiologists, lab technicians) with medical reasoning, patient diagnostic synthesis, and guideline lookup.
@@ -49,6 +66,7 @@ public class ChatContextBuilderService {
                 """);
 
         // 1. Inject Patient Context if available
+        int patientContextStart = sb.length();
         if (patient != null) {
             sb.append("\n========================================\n");
             sb.append("PATIENT CLINICAL CONTEXT:\n");
@@ -104,6 +122,8 @@ public class ChatContextBuilderService {
                 log.warn("Could not load recent analyses for patient context: {}", e.getMessage());
             }
             sb.append("========================================\n\n");
+            // Everything appended since the patient header is patient fact, and is grounding.
+            grounding.append(sb.substring(patientContextStart));
         }
 
         // 2. Inject RAG Knowledge Base Chunks
@@ -132,6 +152,7 @@ public class ChatContextBuilderService {
                                 chunk.getChunkIndex() + 1,
                                 chunk.getContent()
                         ));
+                        grounding.append(chunk.getContent()).append('\n');
 
                         String excerpt = chunk.getContent().length() > 200
                                 ? chunk.getContent().substring(0, 200) + "..."
@@ -160,6 +181,12 @@ public class ChatContextBuilderService {
                 - Keep tone professional, analytical, and supportive of clinical decision-making.
                 """);
 
-        return new BuiltContext(sb.toString(), citations);
+        // The user's own words are grounding too: a dose the practitioner stated and the model
+        // echoed back is not the model inventing one.
+        if (latestUserQuery != null) {
+            grounding.append('\n').append(latestUserQuery);
+        }
+
+        return new BuiltContext(sb.toString(), citations, grounding.toString());
     }
 }
