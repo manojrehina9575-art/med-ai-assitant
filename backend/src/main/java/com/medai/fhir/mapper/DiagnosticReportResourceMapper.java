@@ -2,8 +2,10 @@ package com.medai.fhir.mapper;
 
 import com.medai.analysis.dto.AnalysisResultDto;
 import com.medai.analysis.entity.AnalysisRequest;
+import com.medai.analysis.enums.AnalysisStatus;
 import com.medai.analysis.enums.AnalysisType;
 import com.medai.fhir.FhirConstants;
+import com.medai.report.entity.ReportReview;
 import com.medai.terminology.dto.CodeValidation;
 import com.medai.terminology.service.Icd10Validator;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,15 @@ public class DiagnosticReportResourceMapper {
     private final Icd10Validator icd10Validator;
 
     public DiagnosticReport toFhir(AnalysisRequest analysis, AnalysisResultDto result, List<Reference> results) {
+        return toFhir(analysis, result, results, null);
+    }
+
+    /**
+     * @param signedReview the practitioner's sign-off, when one exists. Its presence is what
+     *                     promotes the report from preliminary to final.
+     */
+    public DiagnosticReport toFhir(AnalysisRequest analysis, AnalysisResultDto result,
+                                   List<Reference> results, ReportReview signedReview) {
         DiagnosticReport report = new DiagnosticReport();
         report.setId(analysis.getId().toString());
 
@@ -46,7 +57,7 @@ public class DiagnosticReportResourceMapper {
                 .setSystem(FhirConstants.ANALYSIS_SYSTEM)
                 .setValue(analysis.getId().toString());
 
-        report.setStatus(status(analysis));
+        report.setStatus(status(analysis, signedReview));
 
         report.addCategory().addCoding(new Coding()
                 .setSystem(FhirConstants.DIAGNOSTIC_SERVICE_SYSTEM)
@@ -75,26 +86,57 @@ public class DiagnosticReportResourceMapper {
             appendFindings(report, result);
         }
 
-        // Every report says, in the resource itself, that it is unsigned AI output. A consumer
+        // Every report says, in the resource itself, that it began as AI output. A consumer
         // reading only the FHIR — which is the whole point of exposing FHIR — would otherwise have
         // no way to know.
         report.addExtension()
                 .setUrl(FhirConstants.BASE_NAMESPACE + ":ai-generated")
                 .setValue(new BooleanType(true));
 
+        if (signedReview != null && "SIGNED".equals(signedReview.getStatus())) {
+            // Names the practitioner who took responsibility. A FINAL report with no interpreter
+            // is a claim with nobody behind it.
+            report.addResultsInterpreter(new Reference("Practitioner/" + signedReview.getSignedBy()));
+            if (signedReview.getSignedAt() != null) {
+                report.setIssued(Date.from(signedReview.getSignedAt()));
+            }
+            // The signed text supersedes the draft: it is what the clinician actually stands behind.
+            if (signedReview.getFinalContent() != null && !signedReview.getFinalContent().isBlank()) {
+                report.addExtension()
+                        .setUrl(FhirConstants.BASE_NAMESPACE + ":clinician-signed")
+                        .setValue(new BooleanType(true));
+            }
+        }
+
         return report;
     }
 
     /**
-     * {@code PARTIAL} means preliminary: content is available but not verified by a responsible
-     * clinician. That is precisely the state of everything here.
+     * The status a consumer can rely on.
+     *
+     * <p>{@code PARTIAL} means preliminary: content exists but no responsible clinician has
+     * verified it. That is the state of every unsigned draft, and it used to be the state of
+     * everything, unconditionally.
+     *
+     * <p>Once a practitioner signs, {@code FINAL} becomes the truthful answer — and an amended
+     * report becomes {@code AMENDED}, which is the status an EHR uses to prompt a re-read. This is
+     * the payoff of the sign-off workflow at the interop boundary: a receiving system can now tell
+     * a machine draft from a report a named human stands behind, which is exactly the distinction
+     * the regulatory position rests on.
      */
-    private DiagnosticReport.DiagnosticReportStatus status(AnalysisRequest analysis) {
-        return switch (analysis.getStatus()) {
-            case COMPLETED -> DiagnosticReport.DiagnosticReportStatus.PARTIAL;
-            case FAILED -> DiagnosticReport.DiagnosticReportStatus.CANCELLED;
-            default -> DiagnosticReport.DiagnosticReportStatus.REGISTERED;
-        };
+    private DiagnosticReport.DiagnosticReportStatus status(AnalysisRequest analysis, ReportReview review) {
+        if (analysis.getStatus() == AnalysisStatus.FAILED) {
+            return DiagnosticReport.DiagnosticReportStatus.CANCELLED;
+        }
+        if (analysis.getStatus() != AnalysisStatus.COMPLETED) {
+            return DiagnosticReport.DiagnosticReportStatus.REGISTERED;
+        }
+        if (review == null || !"SIGNED".equals(review.getStatus())) {
+            return DiagnosticReport.DiagnosticReportStatus.PARTIAL;
+        }
+        return review.getAmendsReviewId() != null
+                ? DiagnosticReport.DiagnosticReportStatus.AMENDED
+                : DiagnosticReport.DiagnosticReportStatus.FINAL;
     }
 
     private void addConclusionCodes(DiagnosticReport report, List<String> icd10Codes) {

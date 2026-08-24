@@ -10,6 +10,7 @@ import type { Patient } from '@/types';
 const pageMeta: Record<string, { title: string; sub: string }> = {
   dashboard:    { title: 'Dashboard',                  sub: 'Clinical overview & quick actions' },
   patients:     { title: 'Patient Registry',           sub: 'Medical records management' },
+  worklist:     { title: 'Reading Worklist',           sub: 'Draft reports awaiting clinician sign-off' },
   upload:       { title: 'Upload Studies',             sub: 'Diagnostic file ingestion' },
   workflows:    { title: 'Clinical Agent & LangGraph4j Workflows', sub: 'Autonomous multi-step actions & HITL approval' },
   analysis:     { title: 'AI Radiology & PACS',        sub: 'Multimodal image analysis' },

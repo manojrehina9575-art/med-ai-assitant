@@ -4,7 +4,7 @@ import { logout } from '@/services/api';
 import {
   LayoutDashboard, Users, Upload, Settings, LogOut,
   Brain, FileText, BookOpen, MessageSquare, Zap, Wand2,
-  Shield, Cpu, Activity
+  Shield, Cpu, Activity, ClipboardCheck
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
@@ -26,6 +26,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/patients',  label: 'Patients',  icon: Users },
+      { to: '/worklist',  label: 'Reading Worklist', icon: ClipboardCheck },
     ],
   },
   {

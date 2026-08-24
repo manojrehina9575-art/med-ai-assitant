@@ -9,6 +9,7 @@ import com.medai.analysis.repository.AnalysisRequestRepository;
 import com.medai.common.exception.ResourceNotFoundException;
 import com.medai.fhir.mapper.*;
 import com.medai.patient.repository.PatientRepository;
+import com.medai.report.service.ReportSignOffService;
 import com.medai.upload.repository.MedicalFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class FhirResourceService {
     private final DiagnosticReportResourceMapper diagnosticReportMapper;
     private final ImagingStudyResourceMapper imagingStudyMapper;
 
+    private final ReportSignOffService signOffService;
     private final ObjectMapper objectMapper;
 
     // ── Patient ──────────────────────────────────────────────────────────────
@@ -112,7 +114,10 @@ public class FhirResourceService {
             }
         }
 
-        return diagnosticReportMapper.toFhir(analysis, result, observations);
+        // A signed review promotes the report from preliminary to final. Looking it up here rather
+        // than in the mapper keeps the mapper a pure function of what it is handed.
+        return diagnosticReportMapper.toFhir(analysis, result, observations,
+                signOffService.signedReviewFor(analysis.getTenantId(), analysis.getId()).orElse(null));
     }
 
     // ── Observation ──────────────────────────────────────────────────────────

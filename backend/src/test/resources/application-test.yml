@@ -21,6 +21,14 @@ app:
   analysis:
     reaper:
       enabled: false
+  critical-results:
+    # Effectively disables the background sweep during tests: escalation widening is exercised
+    # directly rather than raced against a scheduler.
+    sweep-interval-ms: 3600000
+  terminology:
+    rxnorm:
+      # No outbound network from the test suite. The curated drug map must stand on its own.
+      enabled: false
   jwt:
     secret: dGVzdC1qd3Qtc2VjcmV0LWZvci1tZWQtYWktYXNzaXN0YW50LXRlc3RpbmctcHVycG9zZXMtb25seQ==
   ai:

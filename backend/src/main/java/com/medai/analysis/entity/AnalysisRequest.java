@@ -47,6 +47,21 @@ public class AnalysisRequest extends TenantAwareEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    /**
+     * The model declined to produce findings.
+     *
+     * <p>Distinct from FAILED, which means the call did not complete. An abstention is a
+     * successful call with a considered refusal — "image quality insufficient", "outside my
+     * validated scope" — and a decision-support system that can say so is trusted more, not less.
+     * Abstentions are never billed and never used as training data.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean abstained = false;
+
+    @Column(name = "abstention_reason", columnDefinition = "TEXT")
+    private String abstentionReason;
+
     @Column(name = "model_used")
     private String modelUsed;
 

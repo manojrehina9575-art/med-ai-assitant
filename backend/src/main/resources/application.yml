@@ -172,6 +172,13 @@ app:
       password: ${APP_RATE_LIMIT_REDIS_PASSWORD:}
   crypto:
     secret: ${APP_CRYPTO_SECRET:med-ai-aes-256-secure-secret-key-32b!}
+  critical-results:
+    # How long a critical finding may sit unacknowledged before the notification widens to a larger
+    # audience. Widening, not repeating: re-paging someone who has already not responded is how a
+    # critical result goes unread with a full audit trail proving it was sent.
+    acknowledge-within-minutes: ${CRITICAL_ACK_MINUTES:15}
+    # Checked every minute — a 15-minute duty checked every 5 would be a 20-minute duty.
+    sweep-interval-ms: ${CRITICAL_SWEEP_MS:60000}
   billing:
     # Invoices the period that closed today. Billing days are anchored per tenant (max 28), so this
     # runs daily and picks up whoever is due rather than invoicing everyone on the 1st.

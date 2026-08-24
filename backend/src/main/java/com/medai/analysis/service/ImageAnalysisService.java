@@ -68,7 +68,9 @@ public class ImageAnalysisService {
               "impression": "overall clinical impression summary",
               "icd10Codes": ["relevant ICD-10 codes"],
               "recommendations": ["recommended follow-up actions"],
-              "urgency": "ROUTINE | URGENT | CRITICAL"
+              "urgency": "ROUTINE | URGENT | CRITICAL",
+              "abstained": false,
+              "abstentionReason": null
             }
 
             Important guidelines:
@@ -77,11 +79,19 @@ public class ImageAnalysisService {
             - Include confidence scores for each finding
             - Provide relevant ICD-10 codes
             - Clearly state urgency level
-            - If the image quality is poor or unreadable, say so in the impression, set urgency to
-              ROUTINE, and return a single finding describing the quality problem rather than
-              speculating about anatomy you cannot see
             - Always include at least one finding even if normal
             - Return ONLY valid JSON, no markdown or extra text
+
+            DECLINING TO INTERPRET:
+            You are expected to decline rather than guess. Set "abstained": true with a short
+            "abstentionReason", omit findings, and set urgency to ROUTINE when any of these hold:
+            - The image is unreadable, truncated, or too low in quality to interpret
+            - The image is not a medical image, or not the modality the request describes
+            - The study is outside what you can responsibly interpret without prior imaging,
+              clinical context, or a specialist read
+            Declining is a correct and expected answer. A confident interpretation of a study you
+            cannot actually read is the most harmful output you can produce here, and an abstention
+            routes the study to a human immediately rather than burying the problem in a finding.
             """;
 
     /**
@@ -190,7 +200,13 @@ public class ImageAnalysisService {
 
             request.setStatus(AnalysisStatus.COMPLETED);
             request.setResult(canonicalJson);
-            request.setUrgency(result.getUrgency());
+            // An abstention is a completed call with a considered refusal, not a failure. It is
+            // recorded so it can be excluded from billing and from training data, and so the
+            // refusal rate is measurable rather than invisible.
+            boolean abstained = Boolean.TRUE.equals(result.getAbstained());
+            request.setAbstained(abstained);
+            request.setAbstentionReason(abstained ? result.getAbstentionReason() : null);
+            request.setUrgency(abstained ? "ROUTINE" : result.getUrgency());
             request.setModelUsed(modelName);
             request.setModalityUsed(prepared.modality().name());
             request.setPromptTokens(promptTokens);
@@ -205,6 +221,10 @@ public class ImageAnalysisService {
 
             // Publish event so the notification subsystem can fire without coupling this service
             eventPublisher.publishEvent(new AnalysisCompletedEvent(this, request, request.getRequestedBy(), true));
+
+            if (abstained) {
+                log.info("Analysis {} abstained: {}", analysisRequestId, result.getAbstentionReason());
+            }
 
             log.info("Analysis completed for request {} — modality={}, images={}, urgency={}, findings={}, tokens={}",
                     analysisRequestId, prepared.modality(), media.length, result.getUrgency(),

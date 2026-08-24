@@ -14,7 +14,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        // Overridable so a dev can point the UI at a backend on another port without editing
+        // this file — e.g. running a branch build alongside the compose stack.
+        target: process.env.VITE_API_TARGET || 'http://localhost:8080',
         changeOrigin: true,
       },
     },

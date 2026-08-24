@@ -14,6 +14,7 @@ import { BloodReportPage } from '@/pages/BloodReportPage';
 import { KnowledgeBasePage } from '@/pages/KnowledgeBasePage';
 import { ChatPage } from '@/pages/ChatPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
+import { WorklistPage } from '@/pages/WorklistPage';
 import { CompliancePage } from '@/pages/CompliancePage';
 import { FineTuningPage } from '@/pages/FineTuningPage';
 import { ObservabilityPage } from '@/pages/ObservabilityPage';
@@ -36,6 +37,7 @@ export default function App() {
       <Route element={<DashboardLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/patients" element={<PatientsPage />} />
+        <Route path="/worklist" element={<WorklistPage />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
