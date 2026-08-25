@@ -34,3 +34,7 @@ uploads/
 
 # Logs
 *.log
+
+# Wrangler
+.wrangler/
+.dev.vars

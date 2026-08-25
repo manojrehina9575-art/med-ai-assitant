@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  // Marketing site only — medaiclinical.com. This is NOT the application; the app runs on AWS
+  // at app.medaiclinical.com and is deployed by the GitHub Actions pipeline.
+  //
+  // Without this file, `wrangler deploy` guessed `frontend` as the asset directory and published
+  // the entire React source tree — every .tsx, tsconfig, package.json — as publicly fetchable
+  // files. No secrets were in it, but it served source instead of a website and gave away the
+  // internal structure for nothing.
+  "name": "medaiclinical-site",
+  "compatibility_date": "2026-08-20",
+
+  "assets": {
+    // Plain static HTML. No build step, which is why there is no build command.
+    // _headers and _redirects inside this directory are honoured by Workers static assets.
+    "directory": "marketing"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  // The site is reached at medaiclinical.com. Leaving the *.workers.dev URL live would publish
+  // a second, indexable copy of the same content — duplicate content that competes with the
+  // real domain in search. Flip to true temporarily if you need a preview URL before DNS.
+  "workers_dev": false,
+  "preview_urls": false
+}
