@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Med-AI Clinical — AI drafts. Clinicians sign.</title>
+<meta name="description" content="Med-AI Clinical drafts radiology and laboratory reports for review. A licensed clinician edits and signs every one. Multi-tenant, FHIR R4, built for HIPAA and DPDP obligations.">
+<link rel="canonical" href="https://medaiclinical.com/">
+<meta property="og:title" content="Med-AI Clinical — AI drafts. Clinicians sign.">
+<meta property="og:description" content="Clinical documentation infrastructure for hospitals and diagnostic chains. Every report is reviewed and signed by a licensed practitioner.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://medaiclinical.com/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --ground:#FBFBF9; --surface:#FFFFFF; --sunk:#F2F4F1;
+  --ink:#12211E; --ink-soft:#33443F; --muted:#5A6B66;
+  --rule:#E2E6E1; --accent:#0E5C4A; --accent-soft:#E6F0EC;
+  --display:"Newsreader",Georgia,serif;
+  --body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --pad:clamp(1.25rem,5vw,2.5rem);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:70rem;margin:0 auto;padding:0 var(--pad)}
+a{color:var(--accent)}
+h1,h2,h3{text-wrap:balance}
+
+/* ── nav ── */
+nav{border-bottom:1px solid var(--rule);background:var(--ground);position:sticky;top:0;z-index:10}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-top:1rem;padding-bottom:1rem}
+.logo{font-family:var(--display);font-size:1.2rem;font-weight:500;letter-spacing:-.01em;text-decoration:none;color:var(--ink)}
+.logo span{color:var(--accent)}
+.nav-links{display:flex;gap:1.5rem;align-items:center}
+.nav-links a{font-size:.9rem;text-decoration:none;color:var(--muted)}
+.nav-links a:hover{color:var(--ink)}
+.btn{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;padding:.6rem 1.1rem;border-radius:6px;font-size:.9rem;font-weight:500}
+.btn:hover{background:#0a4a3b}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
+.btn-ghost:hover{background:var(--sunk)}
+@media(max-width:640px){.nav-links a:not(.btn){display:none}}
+
+/* ── hero ── */
+header{padding:clamp(3.5rem,9vw,6.5rem) 0 clamp(2.5rem,6vw,4rem)}
+.eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 1.1rem}
+h1{font-family:var(--display);font-weight:500;font-size:clamp(2.3rem,6vw,3.9rem);line-height:1.06;letter-spacing:-.02em;margin:0;max-width:19ch}
+.lede{font-family:var(--display);font-size:clamp(1.1rem,2.2vw,1.35rem);line-height:1.5;color:var(--ink-soft);max-width:56ch;margin:1.5rem 0 2rem}
+.cta-row{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center}
+.cta-note{font-size:.85rem;color:var(--muted)}
+
+/* ── sections ── */
+section{padding:clamp(2.5rem,6vw,4.5rem) 0;border-top:1px solid var(--rule)}
+h2{font-family:var(--display);font-weight:500;font-size:clamp(1.6rem,3.4vw,2.2rem);line-height:1.15;letter-spacing:-.015em;margin:0 0 .6rem}
+.sub{color:var(--muted);max-width:60ch;margin:0 0 2rem}
+
+/* ── steps ── */
+.steps{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+@media(min-width:56rem){.steps{grid-template-columns:repeat(3,1fr)}}
+.step{background:var(--surface);padding:1.6rem 1.5rem}
+.step-n{font-family:var(--display);font-size:2.2rem;line-height:1;color:var(--rule);display:block;margin-bottom:.4rem}
+.step h3{font-size:1.02rem;margin:0 0 .4rem}
+.step p{margin:0;font-size:.94rem;color:var(--ink-soft)}
+
+/* ── feature grid ── */
+.grid{display:grid;gap:1.5rem 2.5rem}
+@media(min-width:52rem){.grid{grid-template-columns:1fr 1fr}}
+.feat h3{font-size:1rem;margin:0 0 .35rem;display:flex;align-items:center;gap:.5rem}
+.feat h3::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.feat p{margin:0;font-size:.94rem;color:var(--ink-soft)}
+
+/* ── status ── */
+.status{background:var(--sunk);border:1px solid var(--rule);border-radius:10px;padding:clamp(1.4rem,3vw,2rem)}
+.status ul{margin:1rem 0 0;padding:0;list-style:none;display:grid;gap:.6rem}
+@media(min-width:52rem){.status ul{grid-template-columns:1fr 1fr;gap:.6rem 2rem}}
+.status li{display:flex;gap:.6rem;font-size:.94rem;align-items:baseline}
+.tick{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;padding:.16em .45em;border-radius:3px;flex:none;text-transform:uppercase}
+.yes{background:var(--accent-soft);color:var(--accent)}
+.no{background:#F0EAE4;color:#8A5A2B}
+
+/* ── cta ── */
+.panel{background:var(--ink);color:#F3F6F4;border-radius:12px;padding:clamp(1.8rem,4vw,3rem)}
+.panel h2{color:#fff;margin-bottom:.7rem}
+.panel p{color:#C3CEC9;max-width:52ch;margin:0 0 1.6rem}
+.panel .btn{background:#fff;color:var(--ink)}
+.panel .btn:hover{background:#E6F0EC}
+
+footer{border-top:1px solid var(--rule);padding:2.5rem 0 3.5rem;font-size:.85rem;color:var(--muted)}
+footer p{max-width:62ch;margin:0 0 .8rem}
+.legal{font-size:.8rem;padding:.9rem 1.1rem;background:var(--sunk);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;margin-bottom:1.6rem}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="/">Med<span>·</span>AI Clinical</a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#platform">Platform</a>
+      <a href="#status">Where we are</a>
+      <a class="btn btn-ghost" href="https://app.medaiclinical.com">Sign in</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <p class="eyebrow">Clinical documentation infrastructure</p>
+    <h1>AI drafts the report. A clinician signs it.</h1>
+    <p class="lede">
+      Med-AI Clinical prepares structured radiology and laboratory reports from studies your
+      hospital already produces. Every draft goes to a licensed practitioner, who edits and signs
+      it. Nothing reaches a patient record unsigned.
+    </p>
+    <div class="cta-row">
+      <a class="btn" href="#partner">Become a design partner</a>
+      <span class="cta-note">Selecting two hospitals for paid pilots.</span>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <h2>Draft, review, sign</h2>
+    <p class="sub">
+      The workflow radiologists already use, with the first pass prepared for them. The signature
+      is enforced by the software, not asserted in a policy document.
+    </p>
+    <div class="steps">
+      <div class="step">
+        <span class="step-n">01</span>
+        <h3>A study arrives</h3>
+        <p>An image or lab report is uploaded, or arrives from your existing systems. It is
+           analysed and a structured draft is prepared — findings, impression, coded conclusions.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">02</span>
+        <h3>A clinician reviews</h3>
+        <p>The draft appears on a reading worklist, oldest first. The reviewer accepts it,
+           corrects it, or rejects it with a reason. Urgent findings are escalated separately
+           until somebody acknowledges them.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">03</span>
+        <h3>The report is signed</h3>
+        <p>Signing attributes the report to a named practitioner with a timestamp. Only then does
+           it become final — including to any system reading it over FHIR.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="platform">
+  <div class="wrap">
+    <h2>Built for the parts nobody demos</h2>
+    <p class="sub">
+      Most of the work in clinical software is not the model. It is isolation, auditability,
+      consent and interoperability — the questions a hospital's IT review asks first.
+    </p>
+    <div class="grid">
+      <div class="feat">
+        <h3>Tenant isolation in the database</h3>
+        <p>Each hospital's data is separated by PostgreSQL row-level security, not only by
+           application code. A missing filter in a query cannot leak another hospital's records.</p>
+      </div>
+      <div class="feat">
+        <h3>An audit trail that cannot be rewritten</h3>
+        <p>Every read and write is recorded. The application can append to the audit log and
+           cannot alter or delete it. Six-year retention is enforced in the database.</p>
+      </div>
+      <div class="feat">
+        <h3>FHIR R4 interoperability</h3>
+        <p>Patients, observations, diagnostic reports and imaging studies are exposed as
+           conformant FHIR R4 — the same standard India's ABDM is built on.</p>
+      </div>
+      <div class="feat">
+        <h3>Coded, validated output</h3>
+        <p>ICD-10 conclusions and LOINC-coded lab results. A code the system cannot confirm is
+           carried as text rather than asserted as a coding.</p>
+      </div>
+      <div class="feat">
+        <h3>Prescription safety checks</h3>
+        <p>Drug-class allergy cross-reactivity, interaction and duplicate-therapy checks, with
+           daily dose ceilings. A contraindication blocks the prescription until a prescriber
+           explicitly accepts it, on the record.</p>
+      </div>
+      <div class="feat">
+        <h3>Consent, redaction and residency</h3>
+        <p>Per-patient consent for research and model-training use, PHI redaction with a stated
+           coverage report, and deployment in Indian data centres.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="status">
+  <div class="wrap">
+    <h2>Where we actually are</h2>
+    <p class="sub">
+      Healthcare software is bought on trust, and trust does not survive discovering something
+      later. So this is the honest state of the product.
+    </p>
+    <div class="status">
+      <ul>
+        <li><span class="tick yes">Built</span><span>Report drafting for imaging and laboratory studies</span></li>
+        <li><span class="tick yes">Built</span><span>Clinician sign-off, amendment and audit</span></li>
+        <li><span class="tick yes">Built</span><span>Critical-result escalation with acknowledgement</span></li>
+        <li><span class="tick yes">Built</span><span>FHIR R4, ICD-10, LOINC, RxNorm</span></li>
+        <li><span class="tick yes">Built</span><span>Multi-tenancy, audit, consent, retention</span></li>
+        <li><span class="tick no">Not yet</span><span>Clinical validation study — the first design partner's data will produce it</span></li>
+        <li><span class="tick no">Not yet</span><span>Hospital SSO (SAML / OIDC) — in progress</span></li>
+        <li><span class="tick no">Not yet</span><span>SOC 2, ABDM registration, PACS integration</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="partner">
+  <div class="wrap">
+    <div class="panel">
+      <h2>We are looking for two design partners</h2>
+      <p>
+        A diagnostic chain or hospital willing to run a paid eight-week pilot on real historical
+        studies. You get the product and a retrospective validation report on your own data. We
+        get the evidence and the clinical direction.
+      </p>
+      <a class="btn" href="mailto:hello@medaiclinical.com?subject=Design%20partner%20enquiry">hello@medaiclinical.com</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="legal">
+      <strong>Intended use.</strong> Med-AI Clinical is clinical decision-support software. It
+      prepares draft documentation for review by a qualified healthcare professional. It does not
+      diagnose, and it is not a substitute for clinical judgement. Every output requires review and
+      sign-off by a licensed practitioner. It is not a registered medical device and holds no
+      CDSCO, FDA or CE marking.
+    </p>
+    <p>
+      Designed to support obligations under HIPAA and India's DPDP Act. Compliance depends on how
+      a deploying organisation configures and operates the system; we provide the controls and the
+      documentation to evidence them.
+    </p>
+    <p>© <span id="y">2026</span> Med-AI Clinical · <a href="mailto:hello@medaiclinical.com">hello@medaiclinical.com</a></p>
+  </div>
+</footer>
+
+<script>document.getElementById('y').textContent=new Date().getFullYear()</script>
+</body>
+</html>

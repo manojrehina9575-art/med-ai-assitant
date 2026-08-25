@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+# The application is not public content and must never be indexed.
+Disallow: /app
+
+Sitemap: https://medaiclinical.com/sitemap.xml
