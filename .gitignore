@@ -24,6 +24,11 @@ frontend/.vite/
 .env
 .env.local
 .env.*.local
+# Production secrets, written on the server. Never committed — .env.* was not covered by the
+# patterns above, so a `git add .` on the instance would have committed live credentials.
+.env.prod
+.env.production
+.env.staging
 
 # OS
 .DS_Store
@@ -38,3 +43,8 @@ uploads/
 # Wrangler
 .wrangler/
 .dev.vars
+
+# SSH keys — never commit a private key
+*.pem
+*.ppk
+*.key

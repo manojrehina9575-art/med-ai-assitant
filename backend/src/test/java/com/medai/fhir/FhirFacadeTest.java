@@ -166,7 +166,7 @@ class FhirFacadeTest extends BaseIntegrationTest {
         DiagnosticReport report = fhirService.readDiagnosticReport(tenantId, analysis.getId());
 
         assertThat(report.getStatus()).isEqualTo(DiagnosticReport.DiagnosticReportStatus.PARTIAL);
-        assertThat(report.getExtensionByUrl(FhirConstants.BASE_NAMESPACE + ":ai-generated")).isNotNull();
+        assertThat(report.getExtensionByUrl(FhirConstants.BASE_NAMESPACE + "/ai-generated")).isNotNull();
         assertThat(report.getConclusion()).contains("consolidation");
     }
 

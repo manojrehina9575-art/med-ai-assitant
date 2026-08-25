@@ -1,21 +1,41 @@
 spring:
   jpa:
     show-sql: true
+
   flyway:
     clean-disabled: false
 
-  # Spring AI — disabled during tests (no real API calls)
   ai:
+    # Spring AI — no real API calls during tests.
     openai:
       api-key: sk-test-placeholder
       enabled: false
+
+    # The embedding model is fetched from github.com on first use unless told otherwise, so every
+    # test run downloaded ~90MB — slow, and it fails outright once GitHub throttles the repeated
+    # pulls, taking the whole Spring context down with it. The production image already vendors
+    # these files at build time for exactly this reason; the test suite should not be less robust.
+    #
+    # Point MEDAI_MODEL_CACHE at a directory (a file: URI, or a mounted path) holding model.onnx
+    # and tokenizer.json:
+    #
+    #   mkdir -p ~/.cache/medai-models && cd ~/.cache/medai-models
+    #   BASE=https://github.com/spring-projects/spring-ai/raw/main/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2
+    #   curl -fsSLO $BASE/model.onnx && curl -fsSLO $BASE/tokenizer.json
+    #
+    # Left unset it falls back to the network, so a fresh clone still works with no setup.
+    embedding:
+      transformer:
+        onnx:
+          model-uri: ${MEDAI_MODEL_CACHE:https://github.com/spring-projects/spring-ai/raw/main/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2}/model.onnx
+        tokenizer:
+          uri: ${MEDAI_TOKENIZER_CACHE:${MEDAI_MODEL_CACHE:https://raw.githubusercontent.com/spring-projects/spring-ai/main/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2}}/tokenizer.json
 
 logging:
   level:
     com.medai: DEBUG
     org.testcontainers: INFO
 
-# JWT secret for tests (not used in production)
 app:
   # The reaper would otherwise pick up analyses seeded by tests and try to call a real model.
   analysis:
@@ -30,6 +50,7 @@ app:
       # No outbound network from the test suite. The curated drug map must stand on its own.
       enabled: false
   jwt:
+    # Test-only secret. Never used outside the suite.
     secret: dGVzdC1qd3Qtc2VjcmV0LWZvci1tZWQtYWktYXNzaXN0YW50LXRlc3RpbmctcHVycG9zZXMtb25seQ==
   ai:
     rate-limit:

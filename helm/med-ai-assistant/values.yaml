@@ -6,13 +6,17 @@ replicaCount:
   frontend: 2
 
 image:
+  # Set by CI to the ECR registry for the account, e.g. 123456789012.dkr.ecr.ap-south-1.amazonaws.com
+  registry: ""
   backend:
-    repository: medai-backend
-    tag: 0.1.0
+    repository: medai/backend
+    # Overridden per deploy with the commit sha. Never `latest` — a running pod must be traceable
+    # to a commit, or a rollback is guesswork.
+    tag: main
     pullPolicy: IfNotPresent
   frontend:
-    repository: medai-frontend
-    tag: 0.1.0
+    repository: medai/frontend
+    tag: main
     pullPolicy: IfNotPresent
 
 service:
@@ -21,9 +25,12 @@ service:
 
 ingress:
   enabled: true
-  className: nginx
-  host: medai.hospital.internal
-  tlsSecret: medai-tls-secret
+  # AWS Load Balancer Controller. TLS terminates at the ALB with an ACM certificate, so no
+  # cert-manager and no private key on the cluster.
+  className: alb
+  host: app.medaiclinical.com
+  certificateArn: ""
+  albLogsBucket: medai-alb-logs
 
 autoscaling:
   enabled: true
@@ -48,9 +55,42 @@ resources:
       cpu: 500m
       memory: 512Mi
 
+# Both default to OFF in production. Running Postgres in-cluster puts PHI on a pod's volume with
+# no managed backups, no point-in-time recovery and no encryption guarantee — fine for a local
+# stack, wrong for patient data. Use RDS and ElastiCache and point the app at them.
 postgres:
-  enabled: true
+  # In-cluster Postgres. Local/staging convenience only.
+  enabled: false
   storageSize: 50Gi
+  # RDS: encrypted at rest with a KMS CMK, automated backups, multi-AZ.
+  external:
+    host: ""
+    port: 5432
+    database: medai
 
 redis:
-  enabled: true
+  # In-cluster Redis. Local/staging convenience only.
+  enabled: false
+  # ElastiCache. Backs the cross-instance AI request-rate window; without it the effective
+  # ceiling is the configured limit times the replica count.
+  external:
+    host: ""
+    port: 6379
+
+storage:
+  # Local disk is single-instance only, and this chart runs three replicas. S3 is not optional here.
+  type: s3
+  s3:
+    bucket: ""
+    region: ap-south-1
+    kmsKeyId: ""
+
+# IAM Roles for Service Accounts: the pod assumes an AWS role for S3 and KMS rather than holding
+# a long-lived access key in a Kubernetes Secret.
+serviceAccount:
+  create: true
+  name: medai-backend
+  roleArn: ""
+
+aws:
+  region: ap-south-1

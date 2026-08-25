@@ -90,7 +90,7 @@ public class DiagnosticReportResourceMapper {
         // reading only the FHIR — which is the whole point of exposing FHIR — would otherwise have
         // no way to know.
         report.addExtension()
-                .setUrl(FhirConstants.BASE_NAMESPACE + ":ai-generated")
+                .setUrl(FhirConstants.BASE_NAMESPACE + "/ai-generated")
                 .setValue(new BooleanType(true));
 
         if (signedReview != null && "SIGNED".equals(signedReview.getStatus())) {
@@ -103,7 +103,7 @@ public class DiagnosticReportResourceMapper {
             // The signed text supersedes the draft: it is what the clinician actually stands behind.
             if (signedReview.getFinalContent() != null && !signedReview.getFinalContent().isBlank()) {
                 report.addExtension()
-                        .setUrl(FhirConstants.BASE_NAMESPACE + ":clinician-signed")
+                        .setUrl(FhirConstants.BASE_NAMESPACE + "/clinician-signed")
                         .setValue(new BooleanType(true));
             }
         }

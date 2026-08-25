@@ -16,12 +16,23 @@ public final class FhirConstants {
     private FhirConstants() {
     }
 
-    /** Base for this deployment's own identifier namespaces. Override per environment. */
-    public static final String BASE_NAMESPACE = "urn:medai";
+    /**
+     * Base for this deployment's own identifier namespaces.
+     *
+     * <p>A URL on a domain we own, not a bare {@code urn:} — FHIR expects an identifier system to
+     * be a globally unique URI, and convention is that it resolves to something describing the
+     * namespace. A receiving EHR uses this string to decide whether two identifiers refer to the
+     * same thing, so it must never collide with another vendor's.
+     *
+     * <p>Changing this after a hospital has ingested resources means their record now holds
+     * identifiers under a namespace that no longer matches ours, and the two sets stop reconciling.
+     * It is fixed here, before anything has integrated, and should not move again.
+     */
+    public static final String BASE_NAMESPACE = "https://medaiclinical.com/ns";
 
-    public static final String MRN_SYSTEM = BASE_NAMESPACE + ":mrn";
-    public static final String ANALYSIS_SYSTEM = BASE_NAMESPACE + ":analysis";
-    public static final String STUDY_SYSTEM = BASE_NAMESPACE + ":study";
+    public static final String MRN_SYSTEM = BASE_NAMESPACE + "/mrn";
+    public static final String ANALYSIS_SYSTEM = BASE_NAMESPACE + "/analysis";
+    public static final String STUDY_SYSTEM = BASE_NAMESPACE + "/study";
 
     /** India: ABHA (Ayushman Bharat Health Account) number, once ABDM linkage exists. */
     public static final String ABHA_SYSTEM = "https://healthid.abdm.gov.in/ns/abha-number";

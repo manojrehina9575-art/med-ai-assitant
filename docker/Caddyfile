@@ -1,0 +1,51 @@
+# Automatic HTTPS. Caddy obtains and renews a Let's Encrypt certificate on its own, which is
+# what removes the need for an ALB and an ACM certificate on this deployment.
+#
+# REQUIRES the Cloudflare DNS record to be "DNS only" (grey cloud). If the record is proxied,
+# Cloudflare answers the ACME HTTP-01 challenge and Caddy can never obtain a certificate — and
+# separately, a proxied record means Cloudflare sees patient data in plaintext.
+
+{$APP_DOMAIN} {
+	encode gzip
+
+	# Security headers for the SPA document itself.
+	#
+	# Spring Security sets CSP and HSTS on responses it serves, but index.html comes from nginx —
+	# so without this the page that actually loads the JavaScript had no CSP at all, and the XSS
+	# protection added alongside the httpOnly refresh cookie was only half present.
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'"
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		-Server
+	}
+
+	# API, FHIR facade and health, all to the backend. /fhir is routed explicitly because an EHR
+	# or ABDM gateway calls it directly and must not be served the SPA's HTML.
+	@backend path /api/* /fhir/* /actuator/health
+	handle @backend {
+		reverse_proxy backend:8080 {
+			# Analyses and uploads outlast Caddy's 30s default. The application caps uploads at
+			# 100MB and the model call can take a minute.
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+			}
+		}
+	}
+
+	# Everything else is the SPA.
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}

@@ -6,6 +6,21 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  # Mumbai. Deliberate, not a default: the DPDP Act expects Indian patient data to stay in India,
+  # and an AWS region is the single easiest place to get data residency wrong. ap-south-2
+  # (Hyderabad) is the alternate if capacity or DR requires a second Indian region.
+  AWS_REGION: ap-south-1
+  ECR_BACKEND: medai/backend
+  ECR_FRONTEND: medai/frontend
+
+# OIDC federation instead of long-lived access keys. A leaked AWS_SECRET_ACCESS_KEY in a repo
+# with PHI-adjacent infrastructure is a breach; a short-lived assumed role is not something that
+# can leak in the same way.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   backend-build-and-test:
     name: Backend Build, Lint & Test
@@ -40,12 +55,13 @@ jobs:
         # Points the tests at the service container above. Without these the suite ignored it and
         # started a second database through Testcontainers — two Postgres instances per run, one of
         # them unused.
+        #
+        # `verify`, not `test`: that is the phase the JaCoCo coverage ratchet binds to, so running
+        # `test` would produce the report and never check it.
         env:
           MEDAI_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/medai
           MEDAI_TEST_DB_USER: medai
           MEDAI_TEST_DB_PASSWORD: medai_secret
-        # `verify`, not `test`: that is the phase the JaCoCo coverage ratchet binds to, so
-        # running `test` would produce the report and never check it.
         run: |
           cd backend
           mvn clean verify --batch-mode
@@ -78,46 +94,154 @@ jobs:
           npm ci
           npm run build
 
-  container-security-scan:
-    name: Security & Vulnerability Scan
+  source-scan:
+    name: Dependency & Secret Scan
     needs: [backend-build-and-test, frontend-build-and-test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Run Trivy Vulnerability Scanner
+      - name: Run Trivy Filesystem Scanner
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
+          scanners: 'vuln,secret'
           ignore-unfixed: true
           format: 'table'
           severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+  build-and-push:
+    name: Build & Push Images to ECR
+    needs: [source-scan]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Derive image tag
+        id: meta
+        # The commit sha, never `latest`. A deployment you cannot trace back to a commit is a
+        # deployment you cannot roll back with confidence.
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push backend image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          docker build -f docker/Dockerfile.backend \
+            -t "$REGISTRY/$ECR_BACKEND:$TAG" \
+            -t "$REGISTRY/$ECR_BACKEND:${GITHUB_REF_NAME}" .
+          docker push "$REGISTRY/$ECR_BACKEND:$TAG"
+          docker push "$REGISTRY/$ECR_BACKEND:${GITHUB_REF_NAME}"
+
+      - name: Build & push frontend image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          docker build -f docker/Dockerfile.frontend \
+            -t "$REGISTRY/$ECR_FRONTEND:$TAG" \
+            -t "$REGISTRY/$ECR_FRONTEND:${GITHUB_REF_NAME}" .
+          docker push "$REGISTRY/$ECR_FRONTEND:$TAG"
+          docker push "$REGISTRY/$ECR_FRONTEND:${GITHUB_REF_NAME}"
+
+      - name: Scan built backend image
+        # Scanning the image, not just the source: the base image contributes most of the CVEs and
+        # the filesystem scan above never sees it.
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_BACKEND }}:${{ steps.meta.outputs.tag }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'
 
   deploy-staging:
-    name: Deploy to Staging (Kubernetes)
-    needs: [container-security-scan]
+    name: Deploy to Staging (EKS)
+    needs: [build-and-push]
     if: github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
+    environment: staging
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Deploy Helm Chart to Staging
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region "$AWS_REGION"
+
+      - name: Deploy via Helm
+        env:
+          TAG: ${{ needs.build-and-push.outputs.image-tag }}
         run: |
-          echo "Deploying med-ai-assistant to staging cluster via Helm..."
-          helm upgrade --install medai-staging ./helm/med-ai-assistant -n medai-staging --create-namespace
+          helm upgrade --install medai-staging ./helm/med-ai-assistant \
+            --namespace medai-staging --create-namespace \
+            --set image.registry="${{ secrets.ECR_REGISTRY }}" \
+            --set image.backend.tag="$TAG" \
+            --set image.frontend.tag="$TAG" \
+            --set ingress.host=staging.medaiclinical.com \
+            --set ingress.certificateArn="${{ secrets.ACM_CERTIFICATE_ARN }}" \
+            --wait --timeout 10m
 
   deploy-production:
-    name: Deploy to Production (Kubernetes)
-    needs: [container-security-scan]
+    name: Deploy to Production (EKS)
+    needs: [build-and-push]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Requires a reviewer on the GitHub environment. A pipeline that can put code in front of
+    # patients without a human saying yes is not a pipeline you want in a clinical product.
+    environment: production
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Deploy Helm Chart to Production
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region "$AWS_REGION"
+
+      - name: Deploy via Helm
+        env:
+          TAG: ${{ needs.build-and-push.outputs.image-tag }}
         run: |
-          echo "Deploying med-ai-assistant to production cluster via Helm..."
-          helm upgrade --install medai-prod ./helm/med-ai-assistant -n medai-prod --create-namespace
+          helm upgrade --install medai-prod ./helm/med-ai-assistant \
+            --namespace medai-prod --create-namespace \
+            --set image.registry="${{ secrets.ECR_REGISTRY }}" \
+            --set image.backend.tag="$TAG" \
+            --set image.frontend.tag="$TAG" \
+            --set ingress.host=app.medaiclinical.com \
+            --set ingress.certificateArn="${{ secrets.ACM_CERTIFICATE_ARN }}" \
+            --wait --timeout 10m
+
+      - name: Verify rollout
+        # Flyway runs on startup, so a bad migration surfaces as a pod that never becomes ready.
+        # Failing here rather than reporting green is the difference between a caught bad deploy
+        # and a silent one.
+        run: |
+          kubectl rollout status deployment/medai-prod-backend -n medai-prod --timeout=5m
+          kubectl rollout status deployment/medai-prod-frontend -n medai-prod --timeout=5m

@@ -46,6 +46,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // The FHIR CapabilityStatement is fetched before authentication: it is how
+                        // a client discovers what the server supports and where to authenticate.
+                        // Behind auth it returns 401 and conformant tooling gives up rather than
+                        // guessing. It exposes no patient data — only which resources exist.
+                        .requestMatchers(HttpMethod.GET, "/fhir/metadata").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
                 )

@@ -1,0 +1,121 @@
+# Single-host production stack. One EC2 instance, no EKS, no ALB, no RDS.
+#
+#   Cloudflare DNS (grey cloud) ─► EC2 ─► Caddy ─┬─► backend  (/api, /fhir, /actuator)
+#                                                └─► frontend (everything else)
+#
+# Sized for a t4g.medium (4GB). t4g.small (2GB) will run it but leaves almost no headroom once
+# the JVM has loaded the embedding model — expect OOM kills under any real use.
+#
+#   docker compose -f docker-compose.prod.yml --env-file ../.env.prod up -d
+#
+# What this is NOT: a PHI production environment. Postgres runs on one box with no managed
+# backups, no point-in-time recovery and no failover. That is acceptable for a demo with no
+# patients on it. The day a pilot signs, Postgres moves to RDS.
+
+name: medai-prod
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${DB_NAME:-medai}
+      POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    # Deliberately NO published port. The database is reachable only from the compose network.
+    # Publishing 5432 on a public EC2 instance exposes the patient database to the internet.
+    # For a psql session, tunnel it: ssh -L 5432:localhost:5432 <host>, then docker exec.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-medai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  backend:
+    image: ${ECR_REGISTRY:-medai}/backend:${IMAGE_TAG:-latest}
+    # Both a build and an image, so the same file works two ways: `docker compose build` compiles
+    # on the host (no registry needed — right for a first deploy), and `docker compose pull` fetches
+    # from ECR once CI is publishing. Without the build section the first deploy is blocked behind
+    # setting up ECR.
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    env_file:
+      - ../.env.prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: postgres
+      DB_PORT: 5432
+
+      # One instance, so local disk is correct rather than a compromise — StorageTypeValidator's
+      # warning is about replicas, and there are none. Uploads live in the volume below; back it
+      # up with the database or a restore gives you records pointing at missing studies.
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/uploads
+
+      # Same reasoning: the per-minute rate window is per-instance, and there is one instance,
+      # so it is exactly correct without Redis.
+      APP_RATE_LIMIT_REDIS_HOST: ""
+
+      CORS_ORIGINS: https://${APP_DOMAIN:?APP_DOMAIN is required}
+      JWT_REFRESH_COOKIE_SECURE: "true"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          # The image sets MaxRAMPercentage=70, so the heap tracks this limit: ~1.4GB heap.
+          memory: 2G
+    restart: unless-stopped
+
+  frontend:
+    image: ${ECR_REGISTRY:-medai}/frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    # The only ports open to the world. Caddy obtains and renews a Let's Encrypt certificate
+    # automatically, which is why there is no ALB and no ACM here — saving roughly $17/month.
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:
+  # Holds the issued certificates. Losing this means re-issuing on every restart, which will
+  # hit Let's Encrypt's rate limit (5 per domain per week) and leave the site without TLS.
+  caddy_data:
+  caddy_config:
