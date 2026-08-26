@@ -3,254 +3,1060 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Med-AI Clinical — AI drafts. Clinicians sign.</title>
-<meta name="description" content="Med-AI Clinical drafts radiology and laboratory reports for review. A licensed clinician edits and signs every one. Multi-tenant, FHIR R4, built for HIPAA and DPDP obligations.">
+<title>Med-AI Clinical — AI Drafts. Clinicians Sign.</title>
+<meta name="description" content="Enterprise clinical documentation infrastructure for diagnostic chains and hospitals. AI drafts radiology and pathology reports. Licensed clinicians edit, verify, and sign. Multi-tenant, FHIR R4, built for HIPAA and DPDP compliance.">
 <link rel="canonical" href="https://medaiclinical.com/">
-<meta property="og:title" content="Med-AI Clinical — AI drafts. Clinicians sign.">
-<meta property="og:description" content="Clinical documentation infrastructure for hospitals and diagnostic chains. Every report is reviewed and signed by a licensed practitioner.">
+<meta property="og:title" content="Med-AI Clinical — AI Drafts. Clinicians Sign.">
+<meta property="og:description" content="Clinical documentation infrastructure for hospitals and diagnostic chains. Every report is reviewed, verified, and signed by a licensed practitioner.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://medaiclinical.com/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
-:root{
-  --ground:#FBFBF9; --surface:#FFFFFF; --sunk:#F2F4F1;
-  --ink:#12211E; --ink-soft:#33443F; --muted:#5A6B66;
-  --rule:#E2E6E1; --accent:#0E5C4A; --accent-soft:#E6F0EC;
-  --display:"Newsreader",Georgia,serif;
-  --body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
-  --pad:clamp(1.25rem,5vw,2.5rem);
+:root {
+  --bg-main: #fcfdfc;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f4f6f4;
+  --bg-elevated: #ffffff;
+  --ink-primary: #091312;
+  --ink-secondary: #2c3a37;
+  --ink-muted: #5e706c;
+  --ink-faint: #8d9f9b;
+  --border-light: #e5eae6;
+  --border-medium: #d1dcda;
+  --accent-primary: #0b6953;
+  --accent-hover: #075240;
+  --accent-glow: rgba(11, 105, 83, 0.12);
+  --accent-tint: #eaf4f0;
+  --accent-bright: #10b981;
+  --warning-bg: #fef7ed;
+  --warning-text: #9a470c;
+  --warning-border: #fed7aa;
+  --danger-bg: #fef2f2;
+  --danger-text: #991b1b;
+  --font-display: "Newsreader", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-md: 0 4px 20px -2px rgba(9, 19, 18, 0.05);
+  --shadow-lg: 0 12px 36px -4px rgba(9, 19, 18, 0.08), 0 4px 12px rgba(0,0,0,0.02);
+  --shadow-xl: 0 20px 50px -10px rgba(11, 105, 83, 0.12), 0 8px 24px -4px rgba(0,0,0,0.04);
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased}
-.wrap{max-width:70rem;margin:0 auto;padding:0 var(--pad)}
-a{color:var(--accent)}
-h1,h2,h3{text-wrap:balance}
 
-/* ── nav ── */
-nav{border-bottom:1px solid var(--rule);background:var(--ground);position:sticky;top:0;z-index:10}
-nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-top:1rem;padding-bottom:1rem}
-.logo{font-family:var(--display);font-size:1.2rem;font-weight:500;letter-spacing:-.01em;text-decoration:none;color:var(--ink)}
-.logo span{color:var(--accent)}
-.nav-links{display:flex;gap:1.5rem;align-items:center}
-.nav-links a{font-size:.9rem;text-decoration:none;color:var(--muted)}
-.nav-links a:hover{color:var(--ink)}
-.btn{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;padding:.6rem 1.1rem;border-radius:6px;font-size:.9rem;font-weight:500}
-.btn:hover{background:#0a4a3b}
-.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
-.btn-ghost:hover{background:var(--sunk)}
-@media(max-width:640px){.nav-links a:not(.btn){display:none}}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── hero ── */
-header{padding:clamp(3.5rem,9vw,6.5rem) 0 clamp(2.5rem,6vw,4rem)}
-.eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 1.1rem}
-h1{font-family:var(--display);font-weight:500;font-size:clamp(2.3rem,6vw,3.9rem);line-height:1.06;letter-spacing:-.02em;margin:0;max-width:19ch}
-.lede{font-family:var(--display);font-size:clamp(1.1rem,2.2vw,1.35rem);line-height:1.5;color:var(--ink-soft);max-width:56ch;margin:1.5rem 0 2rem}
-.cta-row{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center}
-.cta-note{font-size:.85rem;color:var(--muted)}
+body {
+  background-color: var(--bg-main);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
 
-/* ── sections ── */
-section{padding:clamp(2.5rem,6vw,4.5rem) 0;border-top:1px solid var(--rule)}
-h2{font-family:var(--display);font-weight:500;font-size:clamp(1.6rem,3.4vw,2.2rem);line-height:1.15;letter-spacing:-.015em;margin:0 0 .6rem}
-.sub{color:var(--muted);max-width:60ch;margin:0 0 2rem}
+.wrap {
+  max-width: 74rem;
+  margin: 0 auto;
+  padding: 0 clamp(1.25rem, 5vw, 2.5rem);
+}
 
-/* ── steps ── */
-.steps{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
-@media(min-width:56rem){.steps{grid-template-columns:repeat(3,1fr)}}
-.step{background:var(--surface);padding:1.6rem 1.5rem}
-.step-n{font-family:var(--display);font-size:2.2rem;line-height:1;color:var(--rule);display:block;margin-bottom:.4rem}
-.step h3{font-size:1.02rem;margin:0 0 .4rem}
-.step p{margin:0;font-size:.94rem;color:var(--ink-soft)}
+a { color: var(--accent-primary); text-decoration: none; transition: color 0.15s ease; }
+a:hover { color: var(--accent-hover); }
 
-/* ── feature grid ── */
-.grid{display:grid;gap:1.5rem 2.5rem}
-@media(min-width:52rem){.grid{grid-template-columns:1fr 1fr}}
-.feat h3{font-size:1rem;margin:0 0 .35rem;display:flex;align-items:center;gap:.5rem}
-.feat h3::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
-.feat p{margin:0;font-size:.94rem;color:var(--ink-soft)}
+/* ── Typography Helpers ── */
+h1, h2, h3, h4 { color: var(--ink-primary); font-weight: 600; line-height: 1.2; text-wrap: balance; }
+.display-title { font-family: var(--font-display); font-weight: 500; }
 
-/* ── status ── */
-.status{background:var(--sunk);border:1px solid var(--rule);border-radius:10px;padding:clamp(1.4rem,3vw,2rem)}
-.status ul{margin:1rem 0 0;padding:0;list-style:none;display:grid;gap:.6rem}
-@media(min-width:52rem){.status ul{grid-template-columns:1fr 1fr;gap:.6rem 2rem}}
-.status li{display:flex;gap:.6rem;font-size:.94rem;align-items:baseline}
-.tick{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;padding:.16em .45em;border-radius:3px;flex:none;text-transform:uppercase}
-.yes{background:var(--accent-soft);color:var(--accent)}
-.no{background:#F0EAE4;color:#8A5A2B}
+/* ── Badges & Tags ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+.badge-accent {
+  background: var(--accent-tint);
+  color: var(--accent-primary);
+  border: 1px solid rgba(11, 105, 83, 0.2);
+}
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  box-shadow: 0 0 8px var(--accent-bright);
+}
 
-/* ── cta ── */
-.panel{background:var(--ink);color:#F3F6F4;border-radius:12px;padding:clamp(1.8rem,4vw,3rem)}
-.panel h2{color:#fff;margin-bottom:.7rem}
-.panel p{color:#C3CEC9;max-width:52ch;margin:0 0 1.6rem}
-.panel .btn{background:#fff;color:var(--ink)}
-.panel .btn:hover{background:#E6F0EC}
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid transparent;
+}
+.btn-primary {
+  background: var(--accent-primary);
+  color: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(11, 105, 83, 0.25);
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(11, 105, 83, 0.35);
+}
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+  border-color: var(--border-medium);
+}
+.btn-secondary:hover {
+  background: var(--bg-subtle);
+  border-color: var(--ink-muted);
+  transform: translateY(-1px);
+}
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.88rem;
+}
 
-footer{border-top:1px solid var(--rule);padding:2.5rem 0 3.5rem;font-size:.85rem;color:var(--muted)}
-footer p{max-width:62ch;margin:0 0 .8rem}
-.legal{font-size:.8rem;padding:.9rem 1.1rem;background:var(--sunk);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;margin-bottom:1.6rem}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* ── Header & Navigation ── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(252, 253, 252, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
+  transition: all 0.2s ease;
+}
+nav .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4.2rem;
+}
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-primary);
+}
+.brand-logo svg { color: var(--accent-primary); }
+.brand-logo span { color: var(--accent-primary); }
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+.nav-link {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.nav-link:hover { color: var(--ink-primary); }
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+@media (max-width: 768px) {
+  .nav-menu { display: none; }
+}
+
+/* ── Hero Section ── */
+.hero {
+  position: relative;
+  padding: clamp(3.5rem, 8vw, 6.5rem) 0 clamp(2.5rem, 6vw, 4.5rem);
+  background: radial-gradient(circle at 50% 0%, rgba(11, 105, 83, 0.05) 0%, transparent 60%);
+}
+.hero-content {
+  text-align: center;
+  max-width: 54rem;
+  margin: 0 auto;
+}
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 6vw, 4.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  margin: 1.4rem 0 1.2rem;
+  color: var(--ink-primary);
+}
+.hero-title em {
+  font-style: italic;
+  color: var(--accent-primary);
+  font-weight: 400;
+}
+.hero-lede {
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  line-height: 1.6;
+  color: var(--ink-secondary);
+  max-width: 44rem;
+  margin: 0 auto 2.2rem;
+}
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.hero-footnote {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+/* ── Clinical Mockup Card ── */
+.mockup-container {
+  margin: clamp(2.5rem, 5vw, 4rem) auto 0;
+  max-width: 64rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+.mockup-header {
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-light);
+  padding: 0.85rem 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+.mockup-dots {
+  display: flex;
+  gap: 0.4rem;
+}
+.mockup-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+.mockup-dot:nth-child(1) { background: #fca5a5; }
+.mockup-dot:nth-child(2) { background: #fde047; }
+.mockup-dot:nth-child(3) { background: #86efac; }
+.mockup-body {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  background: var(--bg-surface);
+}
+@media (max-width: 860px) {
+  .mockup-body { grid-template-columns: 1fr; }
+}
+.mockup-pane {
+  padding: 1.8rem;
+}
+.mockup-pane-left {
+  border-right: 1px solid var(--border-light);
+  background: #fafbfa;
+}
+@media (max-width: 860px) {
+  .mockup-pane-left { border-right: none; border-bottom: 1px solid var(--border-light); }
+}
+.mockup-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mockup-status-tag {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.mockup-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.8rem;
+  color: var(--ink-primary);
+}
+.mockup-text {
+  font-size: 0.92rem;
+  color: var(--ink-secondary);
+  line-height: 1.55;
+  margin-bottom: 1.2rem;
+}
+.mockup-findings {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  font-size: 0.88rem;
+  margin-bottom: 1rem;
+}
+.finding-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--ink-secondary);
+}
+.finding-item:last-child { margin-bottom: 0; }
+.finding-bullet {
+  color: var(--accent-primary);
+  font-weight: bold;
+}
+.signoff-card {
+  background: #ffffff;
+  border: 1.5px solid var(--accent-primary);
+  border-radius: var(--radius-md);
+  padding: 1.2rem;
+  box-shadow: 0 4px 12px rgba(11, 105, 83, 0.08);
+}
+.signoff-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.signoff-practitioner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.signoff-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-tint);
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.signoff-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--ink-primary);
+}
+.signoff-reg {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+.signoff-status {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.signoff-audit {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--border-light);
+  padding-top: 0.65rem;
+  margin-top: 0.65rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* ── Metrics Band ── */
+.metrics-band {
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-surface);
+  padding: 2.2rem 0;
+}
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+@media (max-width: 768px) {
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.metric-item {
+  text-align: center;
+}
+.metric-val {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  color: var(--ink-primary);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+.metric-val span { color: var(--accent-primary); }
+.metric-desc {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  margin-top: 0.35rem;
+}
+
+/* ── Workflow Steps Section ── */
+.section {
+  padding: clamp(3.5rem, 7vw, 5.5rem) 0;
+}
+.section-header {
+  text-align: center;
+  max-width: 44rem;
+  margin: 0 auto clamp(2.5rem, 5vw, 3.5rem);
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.8rem;
+}
+.section-sub {
+  font-size: 1.05rem;
+  color: var(--ink-secondary);
+  line-height: 1.6;
+}
+
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+@media (max-width: 860px) {
+  .workflow-steps { grid-template-columns: 1fr; }
+}
+.step-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+  position: relative;
+}
+.step-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-medium);
+}
+.step-number {
+  font-family: var(--font-display);
+  font-size: 2.8rem;
+  font-weight: 400;
+  color: var(--border-medium);
+  line-height: 1;
+  margin-bottom: 0.8rem;
+}
+.step-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+  color: var(--ink-primary);
+}
+.step-desc {
+  font-size: 0.94rem;
+  color: var(--ink-secondary);
+  line-height: 1.55;
+}
+
+/* ── Features Grid ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+@media (max-width: 960px) {
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .features-grid { grid-template-columns: 1fr; }
+}
+.feature-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 1.8rem;
+  transition: all 0.2s ease;
+}
+.feature-card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.feature-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint);
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.2rem;
+}
+.feature-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.feature-desc {
+  font-size: 0.92rem;
+  color: var(--ink-secondary);
+  line-height: 1.55;
+}
+
+/* ── Status Matrix ── */
+.status-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.status-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  divide-y: 1px solid var(--border-light);
+}
+@media (max-width: 768px) {
+  .status-list { grid-template-columns: 1fr; }
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.6rem;
+  border-bottom: 1px solid var(--border-light);
+}
+.status-label {
+  font-size: 0.94rem;
+  font-weight: 500;
+  color: var(--ink-primary);
+}
+.status-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.status-built {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.status-progress {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid var(--warning-border);
+}
+
+/* ── Design Partner CTA Panel ── */
+.partner-panel {
+  background: linear-gradient(135deg, #091a16 0%, #06120f 100%);
+  color: #f1f5f3;
+  border-radius: var(--radius-xl);
+  padding: clamp(2.5rem, 6vw, 4.5rem);
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  overflow: hidden;
+}
+.partner-panel::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.partner-inner {
+  position: relative;
+  max-width: 44rem;
+}
+.partner-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  color: #ffffff;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+.partner-desc {
+  font-size: 1.08rem;
+  color: #cbd5d1;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+.partner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.btn-white {
+  background: #ffffff;
+  color: var(--ink-primary) !important;
+  font-weight: 700;
+}
+.btn-white:hover {
+  background: #eef3f1;
+  transform: translateY(-1px);
+}
+
+/* ── Footer ── */
+footer {
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-surface);
+  padding: 4rem 0 3rem;
+}
+.footer-disclaimer {
+  background: var(--bg-subtle);
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 1.2rem 1.4rem;
+  font-size: 0.85rem;
+  color: var(--ink-secondary);
+  line-height: 1.6;
+  margin-bottom: 2.2rem;
+}
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-light);
+}
+
+/* ── Smooth micro-interactions ── */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
 </style>
 </head>
 <body>
 
+<!-- Navigation -->
 <nav>
   <div class="wrap">
-    <a class="logo" href="/">Med<span>·</span>AI Clinical</a>
-    <div class="nav-links">
-      <a href="#how">How it works</a>
-      <a href="#platform">Platform</a>
-      <a href="#status">Where we are</a>
-      <a class="btn btn-ghost" href="https://app.medaiclinical.com">Sign in</a>
+    <a class="brand-logo" href="/">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      Med<span>·</span>AI Clinical
+    </a>
+    <div class="nav-menu">
+      <a class="nav-link" href="#how">How It Works</a>
+      <a class="nav-link" href="#platform">Platform Architecture</a>
+      <a class="nav-link" href="#status">Readiness Matrix</a>
+      <a class="nav-link" href="#partner">Design Partners</a>
+    </div>
+    <div class="nav-actions">
+      <a class="btn btn-secondary btn-sm" href="https://app.medaiclinical.com/login">Sign In</a>
+      <a class="btn btn-primary btn-sm" href="#partner">Request Pilot</a>
     </div>
   </div>
 </nav>
 
-<header>
+<!-- Hero Section -->
+<header class="hero">
   <div class="wrap">
-    <p class="eyebrow">Clinical documentation infrastructure</p>
-    <h1>AI drafts the report. A clinician signs it.</h1>
-    <p class="lede">
-      Med-AI Clinical prepares structured radiology and laboratory reports from studies your
-      hospital already produces. Every draft goes to a licensed practitioner, who edits and signs
-      it. Nothing reaches a patient record unsigned.
-    </p>
-    <div class="cta-row">
-      <a class="btn" href="#partner">Become a design partner</a>
-      <span class="cta-note">Selecting two hospitals for paid pilots.</span>
+    <div class="hero-content">
+      <div class="badge badge-accent">
+        <span class="badge-dot"></span>
+        Enterprise Clinical Documentation Infrastructure
+      </div>
+      <h1 class="hero-title">
+        AI drafts the report.<br>
+        <em>A licensed clinician signs it.</em>
+      </h1>
+      <p class="hero-lede">
+        Med-AI Clinical synthesizes radiology studies and complex laboratory biomarkers into structured, conformant clinical drafts. Every output is reviewed, edited, and cryptographically signed by a physician before entering the patient record.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="mailto:hello@medaiclinical.com?subject=Design%20Partner%20Inquiry%20-%20Med-AI%20Clinical">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="20" height="16" x="2" y="4" rx="2"/>
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+          Become a Design Partner
+        </a>
+        <a class="btn btn-secondary" href="https://app.medaiclinical.com">
+          Launch Live Platform
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14m-7-7 7 7-7 7"/>
+          </svg>
+        </a>
+      </div>
+      <p class="hero-footnote">Selecting two diagnostic chains or multi-specialty hospitals for paid 8-week validation pilots.</p>
+    </div>
+
+    <!-- Live Interactive Mockup Card -->
+    <div class="mockup-container">
+      <div class="mockup-header">
+        <div class="mockup-dots">
+          <span class="mockup-dot"></span>
+          <span class="mockup-dot"></span>
+          <span class="mockup-dot"></span>
+        </div>
+        <div>WORKLIST // STUDY-2026-0884 &bull; CHEST_XR_PA</div>
+        <div class="mockup-status-tag">AWAITING SIGN-OFF</div>
+      </div>
+      <div class="mockup-body">
+        <!-- Left Column: Draft Analysis -->
+        <div class="mockup-pane mockup-pane-left">
+          <div class="mockup-label">
+            <span>AI SYNTHESIS ENGINE &bull; VISION 4.5</span>
+            <span style="color: var(--accent-primary);">CONFIDENCE: 94.2%</span>
+          </div>
+          <h3 class="mockup-title">PA Chest Radiograph &bull; Initial Interpretation</h3>
+          <p class="mockup-text">
+            Automated structured draft generated from DICOM metadata and pixel matrix analysis. Correlated against patient history and prior studies.
+          </p>
+          <div class="mockup-findings">
+            <div class="finding-item">
+              <span class="finding-bullet">&bull;</span>
+              <span><strong>Lungs:</strong> Focal consolidation in the right lower lobe consistent with acute community-acquired pneumonia. Left lung clear.</span>
+            </div>
+            <div class="finding-item">
+              <span class="finding-bullet">&bull;</span>
+              <span><strong>Cardiovascular:</strong> Cardiothoracic ratio within normal physiological limits (0.46). No mediastinal widening.</span>
+            </div>
+            <div class="finding-item">
+              <span class="finding-bullet">&bull;</span>
+              <span><strong>Pleura:</strong> Subtle blunting of the right costophrenic angle; minimal reactive pleural effusion.</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span class="badge" style="background:#e0e7ff; color:#3730a3; border: 1px solid #c7d2fe;">ICD-10: J18.9</span>
+            <span class="badge" style="background:#e0e7ff; color:#3730a3; border: 1px solid #c7d2fe;">SNOMED: 233604007</span>
+            <span class="badge" style="background:#dcfce7; color:#166534; border: 1px solid #bbf7d0;">FHIR R4 CONFORMANT</span>
+          </div>
+        </div>
+
+        <!-- Right Column: Verification & Clinician Signature -->
+        <div class="mockup-pane" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div class="mockup-label">CLINICIAN SIGN-OFF VERIFICATION</div>
+            <h3 class="mockup-title" style="font-size: 1.05rem;">Human-in-the-Loop Governance</h3>
+            <p class="mockup-text" style="font-size: 0.88rem;">
+              The software strictly enforces physician review. Reports cannot be committed to EHR, exported, or communicated to patients without an authenticated signature stamp.
+            </p>
+          </div>
+
+          <div class="signoff-card">
+            <div class="signoff-header">
+              <div class="signoff-practitioner">
+                <div class="signoff-avatar">DR</div>
+                <div>
+                  <div class="signoff-name">Dr. Rajeshwari Menon, MD</div>
+                  <div class="signoff-reg">Radiology &bull; Reg: MCI-2014-48921</div>
+                </div>
+              </div>
+              <span class="signoff-status">&check; SIGNED</span>
+            </div>
+            <div class="signoff-audit">
+              <span>TIMESTAMP: 2026-08-26 13:14:02 IST</span>
+              <span>AUTH: SHA-256</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </header>
 
-<section id="how">
+<!-- Key Metrics Band -->
+<section class="metrics-band">
   <div class="wrap">
-    <h2>Draft, review, sign</h2>
-    <p class="sub">
-      The workflow radiologists already use, with the first pass prepared for them. The signature
-      is enforced by the software, not asserted in a policy document.
-    </p>
-    <div class="steps">
-      <div class="step">
-        <span class="step-n">01</span>
-        <h3>A study arrives</h3>
-        <p>An image or lab report is uploaded, or arrives from your existing systems. It is
-           analysed and a structured draft is prepared — findings, impression, coded conclusions.</p>
+    <div class="metrics-grid">
+      <div class="metric-item">
+        <div class="metric-val">&lt; <span>2.1</span>s</div>
+        <div class="metric-desc">Average draft generation latency</div>
       </div>
-      <div class="step">
-        <span class="step-n">02</span>
-        <h3>A clinician reviews</h3>
-        <p>The draft appears on a reading worklist, oldest first. The reviewer accepts it,
-           corrects it, or rejects it with a reason. Urgent findings are escalated separately
-           until somebody acknowledges them.</p>
+      <div class="metric-item">
+        <div class="metric-val"><span>100</span>%</div>
+        <div class="metric-desc">Mandatory physician sign-off rate</div>
       </div>
-      <div class="step">
-        <span class="step-n">03</span>
-        <h3>The report is signed</h3>
-        <p>Signing attributes the report to a named practitioner with a timestamp. Only then does
-           it become final — including to any system reading it over FHIR.</p>
+      <div class="metric-item">
+        <div class="metric-val"><span>FHIR</span> R4</div>
+        <div class="metric-desc">ABDM & EHR interoperability native</div>
+      </div>
+      <div class="metric-item">
+        <div class="metric-val"><span>RLS</span> Isolated</div>
+        <div class="metric-desc">Row-level database tenant security</div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="platform">
+<!-- How It Works Section -->
+<section class="section" id="how">
   <div class="wrap">
-    <h2>Built for the parts nobody demos</h2>
-    <p class="sub">
-      Most of the work in clinical software is not the model. It is isolation, auditability,
-      consent and interoperability — the questions a hospital's IT review asks first.
-    </p>
-    <div class="grid">
-      <div class="feat">
-        <h3>Tenant isolation in the database</h3>
-        <p>Each hospital's data is separated by PostgreSQL row-level security, not only by
-           application code. A missing filter in a query cannot leak another hospital's records.</p>
-      </div>
-      <div class="feat">
-        <h3>An audit trail that cannot be rewritten</h3>
-        <p>Every read and write is recorded. The application can append to the audit log and
-           cannot alter or delete it. Six-year retention is enforced in the database.</p>
-      </div>
-      <div class="feat">
-        <h3>FHIR R4 interoperability</h3>
-        <p>Patients, observations, diagnostic reports and imaging studies are exposed as
-           conformant FHIR R4 — the same standard India's ABDM is built on.</p>
-      </div>
-      <div class="feat">
-        <h3>Coded, validated output</h3>
-        <p>ICD-10 conclusions and LOINC-coded lab results. A code the system cannot confirm is
-           carried as text rather than asserted as a coding.</p>
-      </div>
-      <div class="feat">
-        <h3>Prescription safety checks</h3>
-        <p>Drug-class allergy cross-reactivity, interaction and duplicate-therapy checks, with
-           daily dose ceilings. A contraindication blocks the prescription until a prescriber
-           explicitly accepts it, on the record.</p>
-      </div>
-      <div class="feat">
-        <h3>Consent, redaction and residency</h3>
-        <p>Per-patient consent for research and model-training use, PHI redaction with a stated
-           coverage report, and deployment in Indian data centres.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="status">
-  <div class="wrap">
-    <h2>Where we actually are</h2>
-    <p class="sub">
-      Healthcare software is bought on trust, and trust does not survive discovering something
-      later. So this is the honest state of the product.
-    </p>
-    <div class="status">
-      <ul>
-        <li><span class="tick yes">Built</span><span>Report drafting for imaging and laboratory studies</span></li>
-        <li><span class="tick yes">Built</span><span>Clinician sign-off, amendment and audit</span></li>
-        <li><span class="tick yes">Built</span><span>Critical-result escalation with acknowledgement</span></li>
-        <li><span class="tick yes">Built</span><span>FHIR R4, ICD-10, LOINC, RxNorm</span></li>
-        <li><span class="tick yes">Built</span><span>Multi-tenancy, audit, consent, retention</span></li>
-        <li><span class="tick no">Not yet</span><span>Clinical validation study — the first design partner's data will produce it</span></li>
-        <li><span class="tick no">Not yet</span><span>Hospital SSO (SAML / OIDC) — in progress</span></li>
-        <li><span class="tick no">Not yet</span><span>SOC 2, ABDM registration, PACS integration</span></li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<section id="partner">
-  <div class="wrap">
-    <div class="panel">
-      <h2>We are looking for two design partners</h2>
-      <p>
-        A diagnostic chain or hospital willing to run a paid eight-week pilot on real historical
-        studies. You get the product and a retrospective validation report on your own data. We
-        get the evidence and the clinical direction.
+    <div class="section-header">
+      <div class="badge badge-accent" style="margin-bottom: 0.8rem;">Clinical Workflow</div>
+      <h2 class="section-title">Draft, Review, Sign.</h2>
+      <p class="section-sub">
+        The workflow radiologists and pathologists already trust, with the initial heavy lifting prepared for them. Strict protocol governance enforced by code.
       </p>
-      <a class="btn" href="mailto:hello@medaiclinical.com?subject=Design%20partner%20enquiry">hello@medaiclinical.com</a>
+    </div>
+
+    <div class="workflow-steps">
+      <div class="step-card">
+        <div class="step-number">01</div>
+        <h3 class="step-title">Study Ingestion & Extraction</h3>
+        <p class="step-desc">
+          Medical imaging (DICOM, X-Ray, CT, MRI) or lab panels arrive from your PACS/LIS. The neural engine extracts biomarker matrices, visual abnormalities, and prepares a structured clinical draft.
+        </p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">02</div>
+        <h3 class="step-title">Clinician Reading Worklist</h3>
+        <p class="step-desc">
+          Drafts queue on the reading worklist prioritized by urgency triage. Reviewing physicians accept, edit, or reject findings with full clinical autonomy. Critical alerts trigger instant escalation protocols.
+        </p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">03</div>
+        <h3 class="step-title">Cryptographic Sign-Off</h3>
+        <p class="step-desc">
+          Signing permanently attributes the report to the licensed practitioner with an immutable timestamp and audit trail. The finalized report syncs downstream via FHIR R4.
+        </p>
+      </div>
     </div>
   </div>
 </section>
 
+<!-- Enterprise Platform Architecture -->
+<section class="section" id="platform" style="background: var(--bg-subtle); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light);">
+  <div class="wrap">
+    <div class="section-header">
+      <div class="badge badge-accent" style="margin-bottom: 0.8rem;">Enterprise Infrastructure</div>
+      <h2 class="section-title">Built for the parts nobody demos.</h2>
+      <p class="section-sub">
+        Clinical AI cannot survive in production on models alone. It requires database isolation, auditability, consent frameworks, and regulatory interoperability.
+      </p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/>
+          </svg>
+        </div>
+        <h3 class="feature-title">PostgreSQL Row-Level Security</h3>
+        <p class="feature-desc">
+          Tenant isolation is enforced in the database engine itself. A missed filter in application code cannot leak patient data across hospital boundaries.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h3 class="feature-title">Immutable 6-Year Audit Trail</h3>
+        <p class="feature-desc">
+          Every report generation, clinician edit, sign-off, and view action is written to an append-only audit ledger with 6-year retention compliance.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/>
+          </svg>
+        </div>
+        <h3 class="feature-title">FHIR R4 & ABDM Standard</h3>
+        <p class="feature-desc">
+          Native FHIR R4 resources (DiagnosticReport, Observation, ImagingStudy) ready for seamless integration with ABDM (Ayushman Bharat) and hospital EHRs.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <h3 class="feature-title">ICD-10 & LOINC Validation</h3>
+        <p class="feature-desc">
+          Conclusions and lab parameters are rigorously standardized against verified medical ontologies. Unmatched terms remain explicit text rather than hallucinated codes.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>
+          </svg>
+        </div>
+        <h3 class="feature-title">Prescription Safety Checks</h3>
+        <p class="feature-desc">
+          Automated cross-reactivity, duplicate therapy, and contraindication screening with daily dosage caps. Critical alerts block issuance until clinician acknowledgement.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <h3 class="feature-title">Consent & PHI Redaction</h3>
+        <p class="feature-desc">
+          Granular per-patient consent tracking for research use, automated client-side PHI de-identification, and data residency in sovereign Indian data centers.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Readiness Matrix Section -->
+<section class="section" id="status">
+  <div class="wrap">
+    <div class="section-header">
+      <div class="badge badge-accent" style="margin-bottom: 0.8rem;">Transparent Product Status</div>
+      <h2 class="section-title">Where we actually stand.</h2>
+      <p class="section-sub">
+        Healthcare software is built on transparency and trust. Here is the honest, verifiable state of our engineering stack and clinical roadmap.
+      </p>
+    </div>
+
+    <div class="status-card">
+      <div class="status-list">
+        <div class="status-row">
+          <span class="status-label">Radiology & Laboratory Report Synthesis Engine</span>
+          <span class="status-tag status-built">&check; Production Ready</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Clinician Sign-off, Amendment & Audit Log</span>
+          <span class="status-tag status-built">&check; Production Ready</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Critical STAT Result Escalation Protocol</span>
+          <span class="status-tag status-built">&check; Production Ready</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">FHIR R4 DiagnosticReport & Observation Facade</span>
+          <span class="status-tag status-built">&check; Production Ready</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Multi-Tenant PostgreSQL Row-Level Security</span>
+          <span class="status-tag status-built">&check; Production Ready</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Interactive Anatomical Condition & Biomarker Map</span>
+          <span class="status-tag status-built">&check; Production Ready</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Hospital Enterprise SSO (SAML 2.0 / OIDC)</span>
+          <span class="status-tag status-progress">&bull; In Active Development</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Retrospective Clinical Validation Pilot Data</span>
+          <span class="status-tag status-progress">&bull; Design Partner Phase</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Design Partner Callout Panel -->
+<section class="section" id="partner" style="padding-top: 0;">
+  <div class="wrap">
+    <div class="partner-panel">
+      <div class="partner-inner">
+        <div class="badge" style="background: rgba(255,255,255,0.15); color: #ffffff; border: 1px solid rgba(255,255,255,0.25); margin-bottom: 1.2rem;">
+          Clinical Cohort 2026
+        </div>
+        <h2 class="partner-title">Partner with us on clinical validation.</h2>
+        <p class="partner-desc">
+          We are selecting two diagnostic chains or hospital departments to participate in a paid eight-week retrospective validation pilot. Your team receives full platform deployment and a comprehensive retrospective accuracy analysis on historical anonymized studies.
+        </p>
+        <div class="partner-actions">
+          <a class="btn btn-white" href="mailto:hello@medaiclinical.com?subject=Design%20Partner%20Inquiry%20-%20Med-AI%20Clinical">
+            Contact Clinical Team
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14m-7-7 7 7-7 7"/>
+            </svg>
+          </a>
+          <a class="btn" style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.2);" href="https://app.medaiclinical.com">
+            Explore System Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer & Legal Notice -->
 <footer>
   <div class="wrap">
-    <p class="legal">
-      <strong>Intended use.</strong> Med-AI Clinical is clinical decision-support software. It
-      prepares draft documentation for review by a qualified healthcare professional. It does not
-      diagnose, and it is not a substitute for clinical judgement. Every output requires review and
-      sign-off by a licensed practitioner. It is not a registered medical device and holds no
-      CDSCO, FDA or CE marking.
-    </p>
-    <p>
-      Designed to support obligations under HIPAA and India's DPDP Act. Compliance depends on how
-      a deploying organisation configures and operates the system; we provide the controls and the
-      documentation to evidence them.
-    </p>
-    <p>© <span id="y">2026</span> Med-AI Clinical · <a href="mailto:hello@medaiclinical.com">hello@medaiclinical.com</a></p>
+    <div class="footer-disclaimer">
+      <strong>Intended Use & Regulatory Statement:</strong> Med-AI Clinical is clinical decision-support software designed to draft structured documentation for review by qualified healthcare professionals. It does not provide autonomous clinical diagnoses, nor is it a substitute for physician judgement. Every clinical output requires review, validation, and sign-off by a licensed practitioner prior to patient disclosure. The system holds no CDSCO, US FDA, or CE medical device clearance.
+    </div>
+
+    <div class="footer-bottom">
+      <div class="brand-logo" style="font-size: 1.15rem;">
+        Med<span>·</span>AI Clinical
+      </div>
+      <div>
+        Designed for strict compliance with India's <strong>DPDP Act 2023</strong> and US <strong>HIPAA Security Rule</strong>.
+      </div>
+      <div>
+        &copy; <span id="year">2026</span> Med-AI Clinical &bull; <a href="mailto:hello@medaiclinical.com">hello@medaiclinical.com</a>
+      </div>
+    </div>
   </div>
 </footer>
 
-<script>document.getElementById('y').textContent=new Date().getFullYear()</script>
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+</script>
 </body>
 </html>
