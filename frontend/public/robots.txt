@@ -1,0 +1,4 @@
+# app.medaiclinical.com — Login-gated clinical platform.
+# Search engines must not index this application.
+User-agent: *
+Disallow: /

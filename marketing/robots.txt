@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
-# The application is not public content and must never be indexed.
-Disallow: /app
+
+# Block internal/draft assets if any
+Disallow: /_headers
 
 Sitemap: https://medaiclinical.com/sitemap.xml

@@ -5,6 +5,19 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains
-  # Google Fonts is the only third party. No analytics, no trackers — a marketing site for a
-  # clinical product is a poor place to start explaining why a tracker was loading.
-  Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  # Google Fonts is the only third party. No analytics, no trackers.
+  Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+
+# Cache static assets aggressively
+/og-image.jpg
+  Cache-Control: public, max-age=2592000, immutable
+
+/favicon.svg
+  Cache-Control: public, max-age=86400
+
+/site.webmanifest
+  Cache-Control: public, max-age=86400
+
+/sitemap.xml
+  Cache-Control: public, max-age=86400
+  Content-Type: application/xml; charset=utf-8

@@ -21,9 +21,11 @@
     "enabled": true
   },
 
-  // The site is reached at medaiclinical.com. Leaving the *.workers.dev URL live would publish
-  // a second, indexable copy of the same content — duplicate content that competes with the
-  // real domain in search. Flip to true temporarily if you need a preview URL before DNS.
-  "workers_dev": false,
-  "preview_urls": false
+  "routes": [
+    { "pattern": "medaiclinical.com", "custom_domain": true },
+    { "pattern": "www.medaiclinical.com", "custom_domain": true }
+  ],
+
+  "workers_dev": true,
+  "preview_urls": true
 }

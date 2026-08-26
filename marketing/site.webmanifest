@@ -1,0 +1,21 @@
+{
+  "name": "Med-AI Clinical",
+  "short_name": "Med-AI",
+  "description": "Enterprise clinical documentation infrastructure. AI drafts radiology and pathology reports. Clinicians sign.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#fcfdfc",
+  "theme_color": "#0b6953",
+  "icons": [
+    {
+      "src": "/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

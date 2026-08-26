@@ -3,15 +3,187 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- ── Primary SEO ── -->
 <title>Med-AI Clinical — AI Drafts. Clinicians Sign.</title>
 <meta name="description" content="Enterprise clinical documentation infrastructure for diagnostic chains and hospitals. AI drafts radiology and pathology reports. Licensed clinicians edit, verify, and sign. Multi-tenant, FHIR R4, built for HIPAA and DPDP compliance.">
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+<meta name="author" content="Med-AI Clinical">
+<meta name="keywords" content="clinical AI documentation, radiology report AI, pathology AI, FHIR R4 India, ABDM integration, DPDP Act compliance, hospital AI software, diagnostic chain software, physician sign-off, clinical decision support, medical AI India">
+<meta name="theme-color" content="#0b6953">
 <link rel="canonical" href="https://medaiclinical.com/">
-<meta property="og:title" content="Med-AI Clinical — AI Drafts. Clinicians Sign.">
-<meta property="og:description" content="Clinical documentation infrastructure for hospitals and diagnostic chains. Every report is reviewed, verified, and signed by a licensed practitioner.">
+
+<!-- ── Open Graph / Facebook ── -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://medaiclinical.com/">
+<meta property="og:site_name" content="Med-AI Clinical">
+<meta property="og:locale" content="en_IN">
+<meta property="og:title" content="Med-AI Clinical — AI Drafts. Clinicians Sign.">
+<meta property="og:description" content="Enterprise clinical documentation infrastructure for hospitals and diagnostic chains. AI drafts radiology and pathology reports — every output reviewed and cryptographically signed by a licensed physician. FHIR R4, ABDM, DPDP-compliant.">
+<meta property="og:image" content="https://medaiclinical.com/og-image.jpg">
+<meta property="og:image:secure_url" content="https://medaiclinical.com/og-image.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Med-AI Clinical — AI Drafts. Clinicians Sign. Clinical documentation platform for hospitals.">
+
+<!-- ── Twitter / X Card ── -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@medaiclinical">
+<meta name="twitter:creator" content="@medaiclinical">
+<meta name="twitter:title" content="Med-AI Clinical — AI Drafts. Clinicians Sign.">
+<meta name="twitter:description" content="Enterprise clinical documentation infrastructure for hospitals. AI drafts radiology & pathology reports. Every report reviewed and signed by a licensed clinician. FHIR R4 · ABDM · DPDP.">
+<meta name="twitter:image" content="https://medaiclinical.com/og-image.jpg">
+<meta name="twitter:image:alt" content="Med-AI Clinical platform — clinical documentation AI">
+
+<!-- ── Favicon & Icons ── -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+
+<!-- ── JSON-LD Structured Data ── -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://medaiclinical.com/#organization",
+      "name": "Med-AI Clinical",
+      "url": "https://medaiclinical.com",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://medaiclinical.com/og-image.jpg",
+        "width": 1200,
+        "height": 630
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "hello@medaiclinical.com",
+        "contactType": "sales",
+        "areaServed": "IN",
+        "availableLanguage": "English"
+      },
+      "sameAs": []
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://medaiclinical.com/#website",
+      "url": "https://medaiclinical.com",
+      "name": "Med-AI Clinical",
+      "description": "Enterprise clinical documentation infrastructure powered by AI, with mandatory physician sign-off.",
+      "publisher": {
+        "@id": "https://medaiclinical.com/#organization"
+      },
+      "inLanguage": "en-IN"
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://medaiclinical.com/#webpage",
+      "url": "https://medaiclinical.com",
+      "name": "Med-AI Clinical — AI Drafts. Clinicians Sign.",
+      "description": "Enterprise clinical documentation infrastructure for diagnostic chains and hospitals. AI drafts radiology and pathology reports. Licensed clinicians edit, verify, and sign.",
+      "isPartOf": { "@id": "https://medaiclinical.com/#website" },
+      "about": { "@id": "https://medaiclinical.com/#organization" },
+      "inLanguage": "en-IN",
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://medaiclinical.com/"
+          }
+        ]
+      }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://medaiclinical.com/#software",
+      "name": "Med-AI Clinical",
+      "applicationCategory": "HealthApplication",
+      "operatingSystem": "Web",
+      "url": "https://app.medaiclinical.com",
+      "description": "AI-powered clinical documentation infrastructure for radiology and pathology. Structured draft generation from DICOM and lab data, with mandatory physician review, cryptographic sign-off, and FHIR R4 output.",
+      "publisher": { "@id": "https://medaiclinical.com/#organization" },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR",
+        "description": "Paid 8-week validation pilot for diagnostic chains and hospitals"
+      },
+      "featureList": [
+        "AI-generated radiology report drafts from DICOM studies",
+        "Pathology and laboratory biomarker synthesis",
+        "Mandatory physician review and cryptographic sign-off",
+        "FHIR R4 DiagnosticReport and Observation resources",
+        "ABDM-compatible EHR integration",
+        "Multi-tenant PostgreSQL Row-Level Security",
+        "6-year immutable audit trail",
+        "ICD-10 and LOINC code validation",
+        "Critical STAT result escalation",
+        "DPDP Act 2023 and HIPAA-aligned data handling"
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://medaiclinical.com/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How does Med-AI Clinical generate radiology and pathology reports?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Medical imaging (DICOM, X-Ray, CT, MRI) or lab panels arrive from your PACS or LIS. The neural synthesis engine extracts biomarker matrices and visual abnormalities and prepares a structured, ICD-10 and SNOMED-coded clinical draft automatically."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can AI reports be sent to patients without physician review?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. The platform strictly enforces human-in-the-loop governance. No report can be committed to an EHR, exported, or communicated to a patient without an authenticated cryptographic signature from a licensed practitioner."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Med-AI Clinical compliant with India's ABDM and DPDP Act?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The platform natively outputs FHIR R4 resources compatible with ABDM (Ayushman Bharat Digital Mission). Data handling is designed to comply with India's Digital Personal Data Protection Act 2023, with sovereign data residency in Indian data centers."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How is patient data isolated across multiple hospitals?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Tenant isolation is enforced at the PostgreSQL database level using Row-Level Security policies. A missed application-layer filter cannot leak patient data across hospital or diagnostic chain boundaries."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How can my hospital become a design partner?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Med-AI Clinical is selecting two diagnostic chains or hospital departments for a paid 8-week retrospective validation pilot. Contact the clinical team at hello@medaiclinical.com with subject 'Design Partner Inquiry'."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+
+<!-- ── Performance Hints ── -->
+<link rel="dns-prefetch" href="//fonts.googleapis.com">
+<link rel="dns-prefetch" href="//fonts.gstatic.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
 :root {
