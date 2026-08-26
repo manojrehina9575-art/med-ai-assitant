@@ -5,18 +5,14 @@ import { authService } from '@/services/authService';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { Building2, Mail, Lock, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
-
-function getSubdomainFromHostname(): string {
-  const hostname = window.location.hostname;
-  if (hostname === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return '';
-  const parts = hostname.split('.');
-  if (parts.length >= 2) return parts[0];
-  return '';
-}
+import { Building2, Mail, Lock, Loader2, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { getBaseDomain, getTenantFromHostname, tenantUrl } from '@/utils/tenantHost';
 
 export function LoginPage() {
-  const hostSubdomain = getSubdomainFromHostname();
+  const hostSubdomain = getTenantFromHostname();
+  // Set by the redirect that follows registration, so the admin lands on a page that explains why
+  // they are being asked to sign in on a hostname they have not seen before.
+  const justRegistered = new URLSearchParams(window.location.search).has('welcome');
   const [subdomain, setSubdomain] = useState(hostSubdomain);
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -37,8 +33,19 @@ export function LoginPage() {
         setLoading(false);
         return;
       }
+      // Confirm the workspace exists before sending the browser anywhere, so a typo produces a
+      // clear message here rather than a bare 404 on a hostname that means nothing to the user.
       const tenant = await authService.findTenant(activeSubdomain);
-      const res    = await authService.login(email.trim(), password, tenant.id);
+
+      // On the workspace chooser there is no tenant in the hostname, so credentials must not be
+      // spent here: the session cookie is host-only and would be set on app.<base>, which belongs
+      // to no hospital. Hand the browser to the workspace's own host and sign in there.
+      if (!hostSubdomain) {
+        window.location.assign(tenantUrl(activeSubdomain, '/login'));
+        return;
+      }
+
+      const res = await authService.login(email.trim(), password, tenant.id);
       setAuth(res);
       navigate('/dashboard');
     } catch (err: unknown) {
@@ -61,12 +68,12 @@ export function LoginPage() {
           className="text-3xl font-extrabold text-white mb-2"
           style={{ fontFamily: 'Plus Jakarta Sans, Inter, sans-serif' }}
         >
-          Welcome back
+          {hostSubdomain ? 'Welcome back' : 'Find your workspace'}
         </h1>
         <p style={{ color: 'var(--clr-text-3, #64748b)', fontSize: '14px' }}>
           {hostSubdomain
             ? <>Signing into workspace <span className="text-blue-400 font-semibold">'{hostSubdomain}'</span></>
-            : 'Sign in to your clinical dashboard'}
+            : 'Enter your hospital workspace to continue to its sign-in page'}
         </p>
       </div>
 
@@ -78,6 +85,16 @@ export function LoginPage() {
           border: '1px solid var(--clr-border, #1e2d45)',
         }}
       >
+        {justRegistered && !error && (
+          <div
+            className="flex items-start gap-3 rounded-xl p-3.5 mb-5 text-sm"
+            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac' }}
+          >
+            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#22c55e' }} />
+            <span>Workspace created. This is your hospital's address — bookmark it and sign in with the admin account you just set up.</span>
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <div
@@ -90,7 +107,7 @@ export function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Workspace (only if not from subdomain) */}
+          {/* Workspace. Present only on the chooser; on a tenant host the hostname supplies it. */}
           {!hostSubdomain && (
             <div>
               <Label htmlFor="subdomain">Hospital workspace</Label>
@@ -105,11 +122,13 @@ export function LoginPage() {
                 prefix={<Building2 className="h-4 w-4" />}
               />
               <p className="mt-1.5 text-xs" style={{ color: 'var(--clr-text-3, #64748b)' }}>
-                Your hospital's unique workspace name
+                You will continue to {subdomain ? `${subdomain}.${getBaseDomain()}` : `your-workspace.${getBaseDomain()}`}
               </p>
             </div>
           )}
 
+          {hostSubdomain && (
+          <>
           <div>
             <Label htmlFor="email">Email address</Label>
             <Input
@@ -137,13 +156,15 @@ export function LoginPage() {
               prefix={<Lock className="h-4 w-4" />}
             />
           </div>
+          </>
+          )}
 
           <div className="pt-2">
             <Button type="submit" size="lg" className="w-full" disabled={loading}>
               {loading ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
+                <><Loader2 className="h-4 w-4 animate-spin" /> {hostSubdomain ? 'Signing in…' : 'Finding workspace…'}</>
               ) : (
-                <>Sign In <ArrowRight className="h-4 w-4 ml-1" /></>
+                <>{hostSubdomain ? 'Sign In' : 'Continue'} <ArrowRight className="h-4 w-4 ml-1" /></>
               )}
             </Button>
           </div>

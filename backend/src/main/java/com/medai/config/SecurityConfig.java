@@ -22,6 +22,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -35,6 +36,9 @@ public class SecurityConfig {
 
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
+
+    @Value("${app.cors.allowed-origin-patterns:}")
+    private String allowedOriginPatterns;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -113,13 +117,27 @@ public class SecurityConfig {
                 .toList();
 
         config.setAllowedOrigins(origins);
-        // Allow wildcard subdomains (e.g., http://*.localhost:5173) for multi-tenant testing
-        config.setAllowedOriginPatterns(List.of(
+
+        // Every hospital is served at its own <workspace>.<base-domain> host, so the set of valid
+        // origins is open-ended and cannot be enumerated the way allowed-origins is — a new tenant
+        // would otherwise need a redeploy to be reachable. Deployments pass their own zone here
+        // (https://*.medaiclinical.com); the localhost entries keep multi-tenant testing working
+        // against the dev server.
+        //
+        // This is defence in depth rather than the mechanism tenants rely on: in production the
+        // SPA calls a relative /api on the host it was loaded from, so tenant traffic is
+        // same-origin and never preflighted at all.
+        List<String> patterns = new ArrayList<>(List.of(
                 "http://*.localhost:[*]",
                 "http://localhost:[*]",
                 "https://*.localhost:[*]",
                 "http://*.127.0.0.1:[*]"
         ));
+        Arrays.stream(allowedOriginPatterns.split(","))
+                .map(String::trim)
+                .filter(p -> !p.isEmpty())
+                .forEach(patterns::add);
+        config.setAllowedOriginPatterns(patterns);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

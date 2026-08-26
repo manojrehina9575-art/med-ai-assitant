@@ -135,6 +135,9 @@ app:
       secret-key: ${STORAGE_S3_SECRET_KEY:}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
+    # Open-ended origins for per-tenant hostnames (https://*.medaiclinical.com). Empty by default
+    # so a deployment that has not set up wildcard DNS allows nothing extra.
+    allowed-origin-patterns: ${CORS_ORIGIN_PATTERNS:}
   ai:
     # Set to true only once a BAA / data processing agreement is signed with the configured
     # provider, or the base URL points at a self-hosted model. See AiProviderAdvisory.

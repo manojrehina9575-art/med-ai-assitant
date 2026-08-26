@@ -63,7 +63,10 @@ services:
       # so it is exactly correct without Redis.
       APP_RATE_LIMIT_REDIS_HOST: ""
 
-      CORS_ORIGINS: https://${APP_DOMAIN:?APP_DOMAIN is required}
+      # Every tenant is same-origin (the SPA calls a relative /api on its own host), so this is
+      # a backstop rather than the mechanism that makes tenant hosts work.
+      CORS_ORIGINS: https://app.${BASE_DOMAIN:?BASE_DOMAIN is required}
+      CORS_ORIGIN_PATTERNS: https://*.${BASE_DOMAIN}
       JWT_REFRESH_COOKIE_SECURE: "true"
     volumes:
       - uploads_data:/app/uploads
@@ -91,14 +94,26 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2-alpine
+    # Built on the box, not pulled: the stock image cannot answer the DNS-01 challenge that a
+    # wildcard certificate requires, so every tenant host would serve a TLS error. The CI pipeline
+    # pushes only the backend and frontend images to ECR, so this one carries a local tag and is
+    # built by `docker compose up --build`. See Dockerfile.caddy.
+    image: medai-caddy:local
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
     # The only ports open to the world. Caddy obtains and renews a Let's Encrypt certificate
     # automatically, which is why there is no ALB and no ACM here — saving roughly $17/month.
     ports:
       - "80:80"
       - "443:443"
     environment:
-      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      # One wildcard certificate for *.BASE_DOMAIN covers every hospital, so onboarding a new
+      # tenant is a database row — no deploy, no certificate, no DNS change.
+      BASE_DOMAIN: ${BASE_DOMAIN:?BASE_DOMAIN is required}
+      # Zone:DNS:Edit on this zone only. Caddy writes a TXT record to prove control of the zone
+      # and deletes it again; it is never used for anything else.
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required for the wildcard certificate}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

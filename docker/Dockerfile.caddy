@@ -1,0 +1,16 @@
+# Caddy with the Cloudflare DNS module compiled in.
+#
+# The stock caddy:2-alpine image can only answer HTTP-01 challenges, and Let's Encrypt does not
+# issue wildcard certificates over HTTP-01 — only DNS-01. Serving every hospital at its own
+# <tenant>.medaiclinical.com therefore requires this build: without the module, Caddy starts,
+# fails to obtain *.medaiclinical.com, and every tenant host serves a TLS error.
+#
+# Proxying through Cloudflare would sidestep the wildcard problem, but the orange cloud
+# terminates TLS at Cloudflare's edge, which puts patient data in plaintext on a third party
+# that has signed no BAA. That is why the DNS records stay grey-cloud and the certificate is
+# obtained here. See docker/Caddyfile.
+FROM caddy:2-builder-alpine AS builder
+RUN xcaddy build --with github.com/caddy-dns/cloudflare
+
+FROM caddy:2-alpine
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy

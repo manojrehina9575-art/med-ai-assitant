@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
+import { Link } from 'react-router-dom';
 import { authService } from '@/services/authService';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Building2, Mail, Lock, Phone, User, Globe2, Loader2, AlertCircle, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { tenantUrl } from '@/utils/tenantHost';
 
 const STEPS = ['Hospital Info', 'Admin Account', 'Review'];
 
@@ -17,8 +17,6 @@ export function RegisterPage() {
   });
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate  = useNavigate();
-  const { setAuth } = useAuthStore();
 
   const update = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -30,9 +28,14 @@ export function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await authService.registerTenant(form);
-      setAuth(res);
-      navigate('/dashboard');
+      await authService.registerTenant(form);
+
+      // The workspace now has its own hostname, and that is where it has to be used. Registration
+      // runs on the chooser (app.<base>), so the session this call established is bound to a host
+      // that belongs to no hospital — the refresh cookie is host-only and would not travel to the
+      // new tenant host anyway. Send the browser there to sign in once, on the right origin.
+      window.location.assign(tenantUrl(form.subdomain, '/login?welcome=1'));
+      return;
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
       setError(e.response?.data?.message || 'Registration failed.');

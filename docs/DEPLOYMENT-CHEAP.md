@@ -96,7 +96,8 @@ DB_APP_PASSWORD=$(openssl rand -base64 24)
 JWT_SECRET=$(openssl rand -base64 64)
 APP_CRYPTO_SECRET=$(openssl rand -base64 32)
 GROQ_API_KEY=<your key>
-APP_DOMAIN=app.medaiclinical.com
+BASE_DOMAIN=medaiclinical.com
+CLOUDFLARE_API_TOKEN=<Zone:DNS:Edit token for this zone>
 ECR_REGISTRY=<account>.dkr.ecr.ap-south-1.amazonaws.com
 IMAGE_TAG=<commit-sha>
 ```
@@ -106,10 +107,35 @@ first, and the second still falls back to a value committed in this repository (
 **6. Start it**
 ```bash
 cd med-ai-assitant/docker
-docker compose -f docker-compose.prod.yml --env-file ../.env.prod up -d
+docker compose -f docker-compose.prod.yml --env-file ../.env.prod up -d --build
 ```
 
 Caddy obtains a Let's Encrypt certificate within about a minute of DNS resolving.
+
+**DNS — one wildcard record, not one per hospital**
+
+In Cloudflare, both records must stay **DNS only (grey cloud)**: a proxied record means Cloudflare
+terminates TLS and sees patient data in plaintext.
+
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | `app` | `<elastic-ip>` | DNS only |
+| A | `*`   | `<elastic-ip>` | DNS only |
+
+The wildcard is what makes onboarding a hospital a database row rather than a deploy: registering
+the workspace `lifeline` makes `lifeline.medaiclinical.com` work immediately, with no new DNS
+record and no new certificate.
+
+Caddy proves control of the zone with an ACME **DNS-01** challenge, because Let's Encrypt does not
+issue wildcard certificates over HTTP-01. That is the only thing `CLOUDFLARE_API_TOKEN` is for —
+create it at *My Profile → API Tokens → Create Token → Edit zone DNS*, scoped to this zone alone.
+DNS-01 works fine behind the grey cloud, since it never needs an inbound request to reach the box.
+
+Verify after the first start:
+```bash
+curl -sI https://lifeline.medaiclinical.com | head -1     # 200, valid cert from the wildcard
+docker compose -f docker-compose.prod.yml logs caddy | grep -i "certificate obtained"
+```
 
 ---
 

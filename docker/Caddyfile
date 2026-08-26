@@ -1,11 +1,22 @@
-# Automatic HTTPS. Caddy obtains and renews a Let's Encrypt certificate on its own, which is
-# what removes the need for an ALB and an ACM certificate on this deployment.
+# Automatic HTTPS for every hospital's own hostname.
 #
-# REQUIRES the Cloudflare DNS record to be "DNS only" (grey cloud). If the record is proxied,
-# Cloudflare answers the ACME HTTP-01 challenge and Caddy can never obtain a certificate — and
-# separately, a proxied record means Cloudflare sees patient data in plaintext.
+# Each tenant reaches the platform at <workspace>.{$BASE_DOMAIN} — lifeline.medaiclinical.com,
+# apollo.medaiclinical.com — and app.{$BASE_DOMAIN} is the workspace chooser. One wildcard
+# certificate covers all of them, so onboarding a hospital needs no deploy and no new cert: the
+# wildcard DNS record already points here and this block already matches.
+#
+# REQUIRES a DNS-01 challenge. Let's Encrypt does not issue wildcard certificates over HTTP-01,
+# so Caddy proves control of the zone by writing a TXT record through the Cloudflare API. That is
+# why the image is built from Dockerfile.caddy with the Cloudflare DNS module and why
+# CLOUDFLARE_API_TOKEN is required.
+#
+# REQUIRES the Cloudflare DNS records to be "DNS only" (grey cloud). A proxied record means
+# Cloudflare terminates TLS and sees patient data in plaintext. DNS-01 is unaffected by the grey
+# cloud — unlike HTTP-01, it never needs an inbound request to reach this host.
 
-{$APP_DOMAIN} {
+# Shared behaviour for every tenant host. Identical for all of them: the tenant is identified by
+# the hostname in the browser, not by anything Caddy routes on.
+(platform) {
 	encode gzip
 
 	# Security headers for the SPA document itself.
@@ -13,6 +24,9 @@
 	# Spring Security sets CSP and HSTS on responses it serves, but index.html comes from nginx —
 	# so without this the page that actually loads the JavaScript had no CSP at all, and the XSS
 	# protection added alongside the httpOnly refresh cookie was only half present.
+	#
+	# connect-src 'self' is correct on every tenant host because the SPA calls a relative /api,
+	# so the API is always same-origin with the page that called it.
 	header {
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'"
 		Strict-Transport-Security "max-age=63072000; includeSubDomains"
@@ -48,4 +62,14 @@
 			roll_keep 5
 		}
 	}
+}
+
+# Every tenant, plus the app./staging. infrastructure hosts. A Caddy wildcard matches exactly one
+# label, so this covers lifeline.medaiclinical.com but never a.b.medaiclinical.com.
+*.{$BASE_DOMAIN} {
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1
+	}
+	import platform
 }
