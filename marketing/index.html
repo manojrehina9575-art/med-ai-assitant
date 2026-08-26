@@ -6,7 +6,7 @@
 
 <!-- ── Primary SEO ── -->
 <title>Med-AI Clinical — AI Drafts. Clinicians Sign.</title>
-<meta name="description" content="Enterprise clinical documentation infrastructure for diagnostic chains and hospitals. AI drafts radiology and pathology reports. Licensed clinicians edit, verify, and sign. Multi-tenant, FHIR R4, built for HIPAA and DPDP compliance.">
+<meta name="description" content="Enterprise clinical documentation infrastructure for diagnostic chains and hospitals. AI drafts radiology and pathology reports. Licensed clinicians edit, verify, and sign. Multi-tenant, FHIR R4, designed to align with HIPAA and DPDP requirements.">
 <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
 <meta name="author" content="Med-AI Clinical">
 <meta name="keywords" content="clinical AI documentation, radiology report AI, pathology AI, FHIR R4 India, ABDM integration, DPDP Act compliance, hospital AI software, diagnostic chain software, physician sign-off, clinical decision support, medical AI India">
@@ -41,9 +41,6 @@
 
 <!-- ── Favicon & Icons ── -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 
 <!-- ── JSON-LD Structured Data ── -->
@@ -156,7 +153,7 @@
           "name": "Is Med-AI Clinical compliant with India's ABDM and DPDP Act?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. The platform natively outputs FHIR R4 resources compatible with ABDM (Ayushman Bharat Digital Mission). Data handling is designed to comply with India's Digital Personal Data Protection Act 2023, with sovereign data residency in Indian data centers."
+            "text": "The platform natively outputs FHIR R4 resources compatible with ABDM (Ayushman Bharat Digital Mission), and data handling is designed to align with India's Digital Personal Data Protection Act 2023, with data residency in Indian data centers. No independent compliance audit or certification has been completed to date."
           }
         },
         {
@@ -849,6 +846,11 @@ footer {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
 }
+
+/* ── Illustrative-sample labelling on the product mock-up ── */
+.mockup-sample-tag{display:inline-flex;align-items:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:.6rem;letter-spacing:.07em;text-transform:uppercase;font-weight:600;padding:.2rem .5rem;border-radius:4px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;white-space:nowrap}
+.mockup-disclaimer{margin:1rem auto 0;max-width:64ch;text-align:center;font-size:.78rem;line-height:1.55;color:#64748b}
+.status-note{margin-top:1rem;font-size:.8rem;line-height:1.55;color:#64748b}
 </style>
 </head>
 <body>
@@ -916,7 +918,8 @@ footer {
           <span class="mockup-dot"></span>
           <span class="mockup-dot"></span>
         </div>
-        <div>WORKLIST // STUDY-2026-0884 &bull; CHEST_XR_PA</div>
+        <div>WORKLIST // SAMPLE-STUDY &bull; CHEST_XR_PA</div>
+        <div class="mockup-sample-tag">Illustrative sample &middot; synthetic data</div>
         <div class="mockup-status-tag">AWAITING SIGN-OFF</div>
       </div>
       <div class="mockup-body">
@@ -924,11 +927,11 @@ footer {
         <div class="mockup-pane mockup-pane-left">
           <div class="mockup-label">
             <span>AI SYNTHESIS ENGINE &bull; VISION 4.5</span>
-            <span style="color: var(--accent-primary);">CONFIDENCE: 94.2%</span>
+            <span style="color: var(--accent-primary);">SAMPLE OUTPUT</span>
           </div>
           <h3 class="mockup-title">PA Chest Radiograph &bull; Initial Interpretation</h3>
           <p class="mockup-text">
-            Automated structured draft generated from DICOM metadata and pixel matrix analysis. Correlated against patient history and prior studies.
+            Example of an automated structured draft generated from DICOM metadata and pixel matrix analysis, correlated against patient history and prior studies. The findings below are fictional and describe no real patient.
           </p>
           <div class="mockup-findings">
             <div class="finding-item">
@@ -964,22 +967,27 @@ footer {
           <div class="signoff-card">
             <div class="signoff-header">
               <div class="signoff-practitioner">
-                <div class="signoff-avatar">DR</div>
+                <div class="signoff-avatar">RR</div>
                 <div>
-                  <div class="signoff-name">Dr. Rajeshwari Menon, MD</div>
-                  <div class="signoff-reg">Radiology &bull; Reg: MCI-2014-48921</div>
+                  <div class="signoff-name">Reviewing Radiologist</div>
+                  <div class="signoff-reg">Placeholder &bull; not a real practitioner or registration</div>
                 </div>
               </div>
               <span class="signoff-status">&check; SIGNED</span>
             </div>
             <div class="signoff-audit">
-              <span>TIMESTAMP: 2026-08-26 13:14:02 IST</span>
+              <span>TIMESTAMP: SAMPLE</span>
               <span>AUTH: SHA-256</span>
             </div>
           </div>
         </div>
       </div>
     </div>
+    <p class="mockup-disclaimer">
+      The interface above is an illustrative rendering of the product using synthetic data. It is not a real
+      patient study, not a real diagnostic report, and the reviewing clinician shown is a placeholder rather
+      than a real, registered practitioner.
+    </p>
   </div>
 </header>
 
@@ -989,11 +997,11 @@ footer {
     <div class="metrics-grid">
       <div class="metric-item">
         <div class="metric-val">&lt; <span>2.1</span>s</div>
-        <div class="metric-desc">Average draft generation latency</div>
+        <div class="metric-desc">Median draft latency &mdash; internal benchmark, synthetic studies</div>
       </div>
       <div class="metric-item">
         <div class="metric-val"><span>100</span>%</div>
-        <div class="metric-desc">Mandatory physician sign-off rate</div>
+        <div class="metric-desc">Of reports require physician sign-off &mdash; enforced in code</div>
       </div>
       <div class="metric-item">
         <div class="metric-val"><span>FHIR</span> R4</div>
@@ -1138,7 +1146,7 @@ footer {
       <div class="badge badge-accent" style="margin-bottom: 0.8rem;">Transparent Product Status</div>
       <h2 class="section-title">Where we actually stand.</h2>
       <p class="section-sub">
-        Healthcare software is built on transparency and trust. Here is the honest, verifiable state of our engineering stack and clinical roadmap.
+        Healthcare software is built on transparency and trust. Here is the honest state of our engineering stack and clinical roadmap. &ldquo;Built &amp; internally tested&rdquo; means the capability is implemented and covered by our own test suite &mdash; it does not mean clinically validated, independently audited, or certified.
       </p>
     </div>
 
@@ -1146,27 +1154,27 @@ footer {
       <div class="status-list">
         <div class="status-row">
           <span class="status-label">Radiology & Laboratory Report Synthesis Engine</span>
-          <span class="status-tag status-built">&check; Production Ready</span>
+          <span class="status-tag status-built">&check; Built &amp; internally tested</span>
         </div>
         <div class="status-row">
           <span class="status-label">Clinician Sign-off, Amendment & Audit Log</span>
-          <span class="status-tag status-built">&check; Production Ready</span>
+          <span class="status-tag status-built">&check; Built &amp; internally tested</span>
         </div>
         <div class="status-row">
           <span class="status-label">Critical STAT Result Escalation Protocol</span>
-          <span class="status-tag status-built">&check; Production Ready</span>
+          <span class="status-tag status-built">&check; Built &amp; internally tested</span>
         </div>
         <div class="status-row">
           <span class="status-label">FHIR R4 DiagnosticReport & Observation Facade</span>
-          <span class="status-tag status-built">&check; Production Ready</span>
+          <span class="status-tag status-built">&check; Built &amp; internally tested</span>
         </div>
         <div class="status-row">
           <span class="status-label">Multi-Tenant PostgreSQL Row-Level Security</span>
-          <span class="status-tag status-built">&check; Production Ready</span>
+          <span class="status-tag status-built">&check; Built &amp; internally tested</span>
         </div>
         <div class="status-row">
           <span class="status-label">Interactive Anatomical Condition & Biomarker Map</span>
-          <span class="status-tag status-built">&check; Production Ready</span>
+          <span class="status-tag status-built">&check; Built &amp; internally tested</span>
         </div>
         <div class="status-row">
           <span class="status-label">Hospital Enterprise SSO (SAML 2.0 / OIDC)</span>
@@ -1221,7 +1229,7 @@ footer {
         Med<span>·</span>AI Clinical
       </div>
       <div>
-        Designed for strict compliance with India's <strong>DPDP Act 2023</strong> and US <strong>HIPAA Security Rule</strong>.
+        Engineered to align with India's <strong>DPDP Act 2023</strong> and the US <strong>HIPAA Security Rule</strong>. No independent audit or certification has been completed.
       </div>
       <div>
         &copy; <span id="year">2026</span> Med-AI Clinical &bull; <a href="mailto:hello@medaiclinical.com">hello@medaiclinical.com</a>

@@ -26,6 +26,9 @@
     { "pattern": "www.medaiclinical.com", "custom_domain": true }
   ],
 
-  "workers_dev": true,
-  "preview_urls": true
+  // Off on purpose. With these on, the entire medical-brand marketing site is also served from
+  // *.workers.dev URLs. A second, identical copy of a healthcare brand on a generic shared
+  // subdomain is a lookalike-site signal to Google Safe Browsing, and it splits SEO for nothing.
+  "workers_dev": false,
+  "preview_urls": false
 }
