@@ -1,0 +1,952 @@
+{
+  "$comment": [
+    "Declarative selection of BodyParts3D 4.0 element files for the Skeleton Viewer V1 model.",
+    "Most ids here come from the official PART-OF mapping tables shipped with the dataset:",
+    "  partof_parts_list_e.txt      concept id (FMA) -> representation id (BP) -> English name",
+    "  partof_element_parts.txt     concept id (FMA) -> element file id (FJ*.obj)",
+    "Cranial nerve ids come from the official IS-A mapping tables because the PART-OF archive does not include those nerve OBJ files:",
+    "  isa_parts_list_e.txt         concept id (FMA) -> representation id (BP) -> English name",
+    "  isa_element_parts.txt        concept id (FMA) -> element file id (FJ*.obj)",
+    "\"source\": \"isa\" selects the ISA OBJ archive; omitted means PART-OF.",
+    "The FMA concepts chosen are the explicitly sided ones, so left/right identity comes from the",
+    "official metadata rather than from geometry inspection. The build script additionally checks",
+    "the representation id recorded inside each OBJ header and the sign of each mesh centroid.",
+    "\"system\": \"skeletal\" | \"organ\" | \"nervous\" | \"nerve\" selects which GLTF material a mesh gets (see build-bodyparts3d-skeleton.mjs)."
+  ],
+  "dataset": {
+    "name": "BodyParts3D",
+    "release": "4.0",
+    "tree": "PART-OF",
+    "polygonReduction": "99%",
+    "archive": "partof_BP3D_4.0_obj_99.zip",
+    "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+    "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+    "archives": {
+      "partof": {
+        "archive": "partof_BP3D_4.0_obj_99.zip",
+        "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+        "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97"
+      },
+      "isa": {
+        "archive": "isa_BP3D_4.0_obj_99.zip",
+        "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+        "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e"
+      }
+    }
+  },
+  "targets": [
+    {
+      "mesh": "Humerus_R",
+      "fma": "FMA23130",
+      "name": "right humerus",
+      "representation": "BP10197",
+      "elements": [
+        "FJ3368"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Humerus_L",
+      "fma": "FMA23131",
+      "name": "left humerus",
+      "representation": "BP10189",
+      "elements": [
+        "FJ3262"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Femur_R",
+      "fma": "FMA24474",
+      "name": "right femur",
+      "representation": "BP10053",
+      "elements": [
+        "FJ3365"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Femur_L",
+      "fma": "FMA24475",
+      "name": "left femur",
+      "representation": "BP10115",
+      "elements": [
+        "FJ3259"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Scapula_R",
+      "fma": "FMA13395",
+      "name": "right scapula",
+      "representation": "BP10144",
+      "elements": [
+        "FJ3384"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Scapula_L",
+      "fma": "FMA13396",
+      "name": "left scapula",
+      "representation": "BP10159",
+      "elements": [
+        "FJ3279"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Clavicle_R",
+      "fma": "FMA13322",
+      "name": "right clavicle",
+      "representation": "BP10225",
+      "elements": [
+        "FJ3362"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Clavicle_L",
+      "fma": "FMA13323",
+      "name": "left clavicle",
+      "representation": "BP10007",
+      "elements": [
+        "FJ3237"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Tibia_R",
+      "fma": "FMA24477",
+      "name": "right tibia",
+      "representation": "BP9559",
+      "elements": [
+        "FJ3387"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Tibia_L",
+      "fma": "FMA24478",
+      "name": "left tibia",
+      "representation": "BP10195",
+      "elements": [
+        "FJ3282"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Fibula_R",
+      "fma": "FMA24480",
+      "name": "right fibula",
+      "representation": "BP9550",
+      "elements": [
+        "FJ3366"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Fibula_L",
+      "fma": "FMA24481",
+      "name": "left fibula",
+      "representation": "BP9685",
+      "elements": [
+        "FJ3260"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Patella_R",
+      "fma": "FMA24486",
+      "name": "right patella",
+      "representation": "BP9739",
+      "elements": [
+        "FJ3381"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Patella_L",
+      "fma": "FMA24487",
+      "name": "left patella",
+      "representation": "BP9728",
+      "elements": [
+        "FJ3275"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Talus_R",
+      "fma": "FMA24482",
+      "name": "right talus",
+      "representation": "BP9560",
+      "elements": [
+        "FJ3385"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Talus_L",
+      "fma": "FMA24483",
+      "name": "left talus",
+      "representation": "BP10186",
+      "elements": [
+        "FJ3280"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Radius_R",
+      "fma": "FMA23464",
+      "name": "right radius",
+      "representation": "BP9783",
+      "elements": [
+        "FJ3349"
+      ],
+      "side": "R",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Radius_L",
+      "fma": "FMA23465",
+      "name": "left radius",
+      "representation": "BP10123",
+      "elements": [
+        "FJ3277"
+      ],
+      "side": "L",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Ulna_R",
+      "fma": "FMA23467",
+      "name": "right ulna",
+      "representation": "BP9679",
+      "elements": [
+        "FJ3391"
+      ],
+      "side": "R",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Ulna_L",
+      "fma": "FMA23468",
+      "name": "left ulna",
+      "representation": "BP10130",
+      "elements": [
+        "FJ3286"
+      ],
+      "side": "L",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Calcaneus_R",
+      "fma": "FMA24497",
+      "name": "right calcaneus",
+      "representation": "BP10113",
+      "elements": [
+        "FJ3360"
+      ],
+      "side": "R",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Calcaneus_L",
+      "fma": "FMA24498",
+      "name": "left calcaneus",
+      "representation": "BP9825",
+      "elements": [
+        "FJ3256"
+      ],
+      "side": "L",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "HipBone_R",
+      "fma": "FMA16586",
+      "name": "right hip bone",
+      "representation": "BP9949",
+      "elements": [
+        "FJ3152"
+      ],
+      "side": "R",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "HipBone_L",
+      "fma": "FMA16587",
+      "name": "left hip bone",
+      "representation": "BP10067",
+      "elements": [
+        "FJ3288"
+      ],
+      "side": "L",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Sacrum",
+      "fma": "FMA16202",
+      "name": "sacrum",
+      "representation": "BP10178",
+      "elements": [
+        "FJ3393"
+      ],
+      "side": "M",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Sternum",
+      "fma": "FMA7485",
+      "name": "sternum",
+      "representation": "BP9392",
+      "elements": [
+        "FJ3153",
+        "FJ3178",
+        "FJ3290"
+      ],
+      "side": "M",
+      "role": "context",
+      "system": "skeletal"
+    },
+    {
+      "mesh": "Lung_R",
+      "fma": "FMA7309",
+      "name": "right lung",
+      "representation": "BP9359",
+      "elements": [
+        "FJ2041",
+        "FJ2044",
+        "FJ2449",
+        "FJ2451",
+        "FJ2452",
+        "FJ2453",
+        "FJ2454",
+        "FJ2455",
+        "FJ2456",
+        "FJ2457",
+        "FJ2458",
+        "FJ2459",
+        "FJ2470",
+        "FJ2481",
+        "FJ2486",
+        "FJ2487",
+        "FJ2488",
+        "FJ2489",
+        "FJ2490",
+        "FJ2491",
+        "FJ2492",
+        "FJ2493",
+        "FJ2494",
+        "FJ2495",
+        "FJ2496",
+        "FJ2497",
+        "FJ2498",
+        "FJ2499",
+        "FJ2500",
+        "FJ2501",
+        "FJ2502",
+        "FJ2503",
+        "FJ2504",
+        "FJ2505",
+        "FJ2506",
+        "FJ2507",
+        "FJ2508",
+        "FJ2509",
+        "FJ2510",
+        "FJ2511",
+        "FJ2512",
+        "FJ2513",
+        "FJ2514",
+        "FJ2515",
+        "FJ2516",
+        "FJ2517",
+        "FJ2518",
+        "FJ2519",
+        "FJ2520",
+        "FJ2521",
+        "FJ2522",
+        "FJ2523",
+        "FJ2524",
+        "FJ2525",
+        "FJ2526",
+        "FJ2967",
+        "FJ2968",
+        "FJ2969",
+        "FJ2970",
+        "FJ2971",
+        "FJ2972",
+        "FJ2973",
+        "FJ2974",
+        "FJ2975",
+        "FJ2976",
+        "FJ2977",
+        "FJ2978",
+        "FJ2979",
+        "FJ2980",
+        "FJ2981",
+        "FJ2982",
+        "FJ2983",
+        "FJ2984",
+        "FJ2985",
+        "FJ2986",
+        "FJ2987",
+        "FJ2988",
+        "FJ2989",
+        "FJ2990",
+        "FJ2991",
+        "FJ2992",
+        "FJ2993",
+        "FJ2994",
+        "FJ2995",
+        "FJ2996",
+        "FJ2997",
+        "FJ2998",
+        "FJ2999",
+        "FJ3000",
+        "FJ3001",
+        "FJ3002",
+        "FJ3003",
+        "FJ3004",
+        "FJ3005",
+        "FJ3006",
+        "FJ3007",
+        "FJ3008",
+        "FJ3009",
+        "FJ3010",
+        "FJ3011",
+        "FJ3012",
+        "FJ3013",
+        "FJ3014",
+        "FJ3015",
+        "FJ3016",
+        "FJ3017",
+        "FJ3018",
+        "FJ3021",
+        "FJ3022",
+        "FJ3023",
+        "FJ3024",
+        "FJ3025",
+        "FJ3026",
+        "FJ3027",
+        "FJ3028",
+        "FJ3029",
+        "FJ3030",
+        "FJ3031",
+        "FJ3032",
+        "FJ3033",
+        "FJ3034",
+        "FJ3035",
+        "FJ3036",
+        "FJ3037",
+        "FJ3038",
+        "FJ3039",
+        "FJ3041",
+        "FJ3042",
+        "FJ3043",
+        "FJ3044",
+        "FJ3045",
+        "FJ3046",
+        "FJ3047",
+        "FJ3048",
+        "FJ3049",
+        "FJ3050",
+        "FJ3051",
+        "FJ3052",
+        "FJ3053",
+        "FJ3054",
+        "FJ3055",
+        "FJ3056",
+        "FJ3057",
+        "FJ3058",
+        "FJ3059",
+        "FJ3060",
+        "FJ3061",
+        "FJ3062",
+        "FJ3063",
+        "FJ3064",
+        "FJ3065",
+        "FJ3066",
+        "FJ3067",
+        "FJ3068",
+        "FJ3069",
+        "FJ3070"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "organ"
+    },
+    {
+      "mesh": "Lung_L",
+      "fma": "FMA7310",
+      "name": "left lung",
+      "representation": "BP9417",
+      "elements": [
+        "FJ2441",
+        "FJ2442",
+        "FJ2443",
+        "FJ2444",
+        "FJ2445",
+        "FJ2446",
+        "FJ2447",
+        "FJ2448",
+        "FJ2460",
+        "FJ2461",
+        "FJ2462",
+        "FJ2463",
+        "FJ2464",
+        "FJ2465",
+        "FJ2466",
+        "FJ2467",
+        "FJ2468",
+        "FJ2469",
+        "FJ2471",
+        "FJ2472",
+        "FJ2473",
+        "FJ2474",
+        "FJ2475",
+        "FJ2476",
+        "FJ2477",
+        "FJ2478",
+        "FJ2479",
+        "FJ2480",
+        "FJ2482",
+        "FJ2483",
+        "FJ2484",
+        "FJ2485",
+        "FJ2527",
+        "FJ2528",
+        "FJ2529",
+        "FJ2530",
+        "FJ2531",
+        "FJ2532",
+        "FJ2533",
+        "FJ2534",
+        "FJ2535",
+        "FJ2536",
+        "FJ2537",
+        "FJ2538",
+        "FJ2540",
+        "FJ2881",
+        "FJ2882",
+        "FJ2883",
+        "FJ2884",
+        "FJ2885",
+        "FJ2886",
+        "FJ2887",
+        "FJ2888",
+        "FJ2889",
+        "FJ2890",
+        "FJ2891",
+        "FJ2892",
+        "FJ2893",
+        "FJ2894",
+        "FJ2895",
+        "FJ2896",
+        "FJ2897",
+        "FJ2898",
+        "FJ2899",
+        "FJ2900",
+        "FJ2901",
+        "FJ2902",
+        "FJ2903",
+        "FJ2904",
+        "FJ2905",
+        "FJ2906",
+        "FJ2907",
+        "FJ2908",
+        "FJ2909",
+        "FJ2910",
+        "FJ2911",
+        "FJ2912",
+        "FJ2913",
+        "FJ2914",
+        "FJ2915",
+        "FJ2916",
+        "FJ2917",
+        "FJ2918",
+        "FJ2919",
+        "FJ2920",
+        "FJ2921",
+        "FJ2922",
+        "FJ2923",
+        "FJ2926",
+        "FJ2927",
+        "FJ2928",
+        "FJ2929",
+        "FJ2930",
+        "FJ2931",
+        "FJ2932",
+        "FJ2934",
+        "FJ2935",
+        "FJ2936",
+        "FJ2937",
+        "FJ2938",
+        "FJ2939",
+        "FJ2940",
+        "FJ2941",
+        "FJ2942",
+        "FJ2943",
+        "FJ2945",
+        "FJ2946",
+        "FJ2947",
+        "FJ2948",
+        "FJ2949",
+        "FJ2951",
+        "FJ2952",
+        "FJ2953",
+        "FJ2954",
+        "FJ2956",
+        "FJ2957",
+        "FJ2958",
+        "FJ2959",
+        "FJ2960",
+        "FJ2961",
+        "FJ2962",
+        "FJ2963",
+        "FJ2964",
+        "FJ2965"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "organ"
+    },
+    {
+      "mesh": "Kidney_R",
+      "fma": "FMA7204",
+      "name": "right kidney",
+      "representation": "BP10046",
+      "elements": [
+        "FJ3147"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "organ"
+    },
+    {
+      "mesh": "Kidney_L",
+      "fma": "FMA7205",
+      "name": "left kidney",
+      "representation": "BP10234",
+      "elements": [
+        "FJ3145"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "organ"
+    },
+    {
+      "mesh": "CerebralHemisphere_R",
+      "fma": "FMA67292",
+      "name": "right cerebral hemisphere",
+      "representation": "BP10498",
+      "elements": [
+        "FJ1733",
+        "FJ1740",
+        "FJ1745",
+        "FJ1747",
+        "FJ1749",
+        "FJ1751",
+        "FJ1784",
+        "FJ1786",
+        "FJ1788",
+        "FJ1790",
+        "FJ1792",
+        "FJ1798",
+        "FJ1801",
+        "FJ1806",
+        "FJ1807",
+        "FJ1814",
+        "FJ1834",
+        "FJ1836",
+        "FJ1842"
+      ],
+      "side": "R",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "CerebralHemisphere_L",
+      "fma": "FMA61819",
+      "name": "left cerebral hemisphere",
+      "representation": "BP10491",
+      "elements": [
+        "FJ1732",
+        "FJ1739",
+        "FJ1744",
+        "FJ1746",
+        "FJ1748",
+        "FJ1750",
+        "FJ1758",
+        "FJ1759",
+        "FJ1767",
+        "FJ1783",
+        "FJ1785",
+        "FJ1787",
+        "FJ1789",
+        "FJ1791",
+        "FJ1797",
+        "FJ1800",
+        "FJ1833",
+        "FJ1835",
+        "FJ1841"
+      ],
+      "side": "L",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "Midbrain",
+      "fma": "FMA61993",
+      "name": "midbrain",
+      "representation": "BP6705",
+      "elements": [
+        "FJ1738",
+        "FJ1762",
+        "FJ1770",
+        "FJ1779",
+        "FJ1810",
+        "FJ1817",
+        "FJ1826"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "Pons",
+      "fma": "FMA67943",
+      "name": "pons",
+      "representation": "BP6703",
+      "elements": [
+        "FJ1775",
+        "FJ1822"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "Cerebellum",
+      "fma": "FMA67944",
+      "name": "cerebellum",
+      "representation": "BP6702",
+      "elements": [
+        "FJ1781",
+        "FJ1830"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "Medulla",
+      "fma": "FMA62004",
+      "name": "medulla oblongata",
+      "representation": "BP6704",
+      "elements": [
+        "FJ1769",
+        "FJ1831"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "Hypothalamus",
+      "fma": "FMA62008",
+      "name": "hypothalamus",
+      "representation": "BP6690",
+      "elements": [
+        "FJ1760",
+        "FJ1780",
+        "FJ1808",
+        "FJ1828"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "Epithalamus",
+      "fma": "FMA62009",
+      "name": "epithalamus",
+      "representation": "BP6697",
+      "elements": [
+        "FJ1743",
+        "FJ1795"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "ThirdVentricle",
+      "fma": "FMA78454",
+      "name": "third ventricle",
+      "representation": "BP6685",
+      "elements": [
+        "FJ1730"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "FourthVentricle",
+      "fma": "FMA78469",
+      "name": "fourth ventricle",
+      "representation": "BP6686",
+      "elements": [
+        "FJ1731"
+      ],
+      "side": "M",
+      "role": "target",
+      "system": "nervous"
+    },
+    {
+      "mesh": "CentralCanalOfSpinalCord",
+      "fma": "FMA78497",
+      "name": "central canal of spinal cord",
+      "representation": "BP6682",
+      "elements": [
+        "FJ1737"
+      ],
+      "side": "M",
+      "role": "context",
+      "system": "nervous"
+    },
+    {
+      "mesh": "OpticNerve_R",
+      "fma": "FMA50875",
+      "name": "right optic nerve",
+      "representation": "BP5708",
+      "source": "isa",
+      "elements": [
+        "FJ1364",
+        "FJ1819"
+      ],
+      "side": "R",
+      "role": "context",
+      "system": "nerve"
+    },
+    {
+      "mesh": "OpticNerve_L",
+      "fma": "FMA50878",
+      "name": "left optic nerve",
+      "representation": "BP5709",
+      "source": "isa",
+      "elements": [
+        "FJ1313",
+        "FJ1772"
+      ],
+      "side": "L",
+      "role": "context",
+      "system": "nerve"
+    },
+    {
+      "mesh": "TrochlearNerve_R",
+      "fma": "FMA50881",
+      "name": "right trochlear nerve",
+      "representation": "BP4695",
+      "source": "isa",
+      "elements": [
+        "FJ1381"
+      ],
+      "side": "R",
+      "role": "context",
+      "system": "nerve"
+    },
+    {
+      "mesh": "TrochlearNerve_L",
+      "fma": "FMA50882",
+      "name": "left trochlear nerve",
+      "representation": "BP4696",
+      "source": "isa",
+      "elements": [
+        "FJ1330"
+      ],
+      "side": "L",
+      "role": "context",
+      "system": "nerve"
+    },
+    {
+      "mesh": "CranialNerveBranches",
+      "fma": "FMA52570",
+      "name": "branch of cranial nerve",
+      "representation": "BP5712",
+      "source": "isa",
+      "elements": [
+        "FJ1283",
+        "FJ1290",
+        "FJ1293",
+        "FJ1296",
+        "FJ1300",
+        "FJ1310",
+        "FJ1311",
+        "FJ1312",
+        "FJ1315",
+        "FJ1318",
+        "FJ1321",
+        "FJ1325",
+        "FJ1326",
+        "FJ1333",
+        "FJ1341",
+        "FJ1344",
+        "FJ1347",
+        "FJ1351",
+        "FJ1361",
+        "FJ1362",
+        "FJ1363",
+        "FJ1366",
+        "FJ1369",
+        "FJ1372",
+        "FJ1376",
+        "FJ1377"
+      ],
+      "side": "M",
+      "role": "context",
+      "system": "nerve"
+    }
+  ]
+}

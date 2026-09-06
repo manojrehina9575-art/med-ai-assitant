@@ -218,9 +218,68 @@ class PatientControllerTest extends BaseIntegrationTest {
 
     @Test
     @Order(10)
+    @DisplayName("Deactivate patient (soft delete)")
+    void deletePatient_deactivate() throws Exception {
+        mockMvc.perform(delete("/api/patients/" + patientAId)
+                        .header("Authorization", "Bearer " + tenantAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Patient deactivated"));
+
+        // List active only should return 0
+        mockMvc.perform(get("/api/patients?active=true")
+                        .header("Authorization", "Bearer " + tenantAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(0));
+
+        // List inactive only should return 1
+        mockMvc.perform(get("/api/patients?active=false")
+                        .header("Authorization", "Bearer " + tenantAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].isActive").value(false));
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("Reactivate patient via update")
+    void updatePatient_reactivate() throws Exception {
+        String request = """
+                {
+                    "isActive": true
+                }
+                """;
+
+        mockMvc.perform(put("/api/patients/" + patientAId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + tenantAToken)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.isActive").value(true));
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("Permanently delete patient")
+    void deletePatient_permanent() throws Exception {
+        mockMvc.perform(delete("/api/patients/" + patientAId + "?permanent=true")
+                        .header("Authorization", "Bearer " + tenantAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Patient deleted permanently"));
+
+        mockMvc.perform(get("/api/patients/" + patientAId)
+                        .header("Authorization", "Bearer " + tenantAToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @Order(13)
     @DisplayName("Unauthenticated request returns 401")
     void listPatients_unauthenticated() throws Exception {
         mockMvc.perform(get("/api/patients"))
                 .andExpect(status().isUnauthorized());
     }
 }
+

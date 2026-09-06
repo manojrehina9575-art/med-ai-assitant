@@ -1,5 +1,7 @@
 package com.medai.report.dto;
 
+import com.medai.upload.enums.FileType;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -25,9 +27,13 @@ public final class ReportDtos {
             String rejectionReason,
             String draftContent,
             String finalContent,
+            List<ReportSectionView> sections,
             UUID amendsReviewId,
             Instant createdAt
     ) {
+    }
+
+    public record ReportSectionView(String section, String text) {
     }
 
     /**
@@ -67,6 +73,18 @@ public final class ReportDtos {
             long acceptedAllTime,
             long editedAllTime,
             long rejectedAllTime
+    ) {
+    }
+
+    /**
+     * Creates a real draft review from pasted report text. The tenant comes from the authenticated
+     * request context, never from this payload.
+     */
+    public record CreateTextDraftRequest(
+            UUID patientId,
+            String reportText,
+            FileType modality,
+            String studyDescription
     ) {
     }
 

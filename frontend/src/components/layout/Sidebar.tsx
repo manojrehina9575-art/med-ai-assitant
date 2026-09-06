@@ -2,9 +2,9 @@ import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { logout } from '@/services/api';
 import {
-  LayoutDashboard, Users, Upload, Settings, LogOut,
-  Brain, FileText, BookOpen, MessageSquare, Zap, Wand2,
-  Shield, Cpu, Activity, ClipboardCheck
+  LayoutDashboard, Users, Settings, LogOut,
+  Brain, FileText, Zap, Upload,
+  Shield, Cpu, ClipboardCheck, Scan, BarChart2
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
@@ -16,42 +16,38 @@ interface NavItem {
 }
 
 interface NavGroup {
-  label: string;
+  label?: string;
   items: NavItem[];
 }
 
 const navGroups: NavGroup[] = [
   {
-    label: 'Clinical',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/patients',  label: 'Patients',  icon: Users },
-      { to: '/worklist',  label: 'Reading Worklist', icon: ClipboardCheck },
     ],
   },
   {
-    label: 'AI Tools',
+    label: 'Work',
     items: [
-      { to: '/workflows',     label: 'Agent Workflows', icon: Wand2,         badge: 'LangGraph' },
-      { to: '/analysis',      label: 'AI Radiology',    icon: Brain,         badge: 'Vision' },
-      { to: '/blood-reports', label: 'Blood & Labs',    icon: FileText,      badge: null },
-      { to: '/chat',          label: 'Clinical AI Chat', icon: MessageSquare, badge: 'Memory' },
-      { to: '/knowledge',     label: 'Hospital Protocols', icon: BookOpen,   badge: 'RAG' },
+      { to: '/worklist', label: 'Worklist', icon: ClipboardCheck },
+      { to: '/upload', label: 'Upload Studies', icon: Upload },
+      { to: '/clinical-workspace', label: 'Clinical Workspace', icon: FileText },
+      { to: '/patients', label: 'Patients', icon: Users },
     ],
   },
   {
-    label: 'Governance & Ops',
+    label: 'Intelligence',
     items: [
-      { to: '/compliance',    label: 'Compliance & Consent', icon: Shield,   badge: 'HIPAA' },
-      { to: '/finetuning',    label: 'Fine-Tuning & Models', icon: Cpu,      badge: 'LoRA' },
-      { to: '/observability', label: 'Observability',        icon: Activity, badge: 'Metrics' },
+      { to: '/qa-analytics', label: 'QA Analytics', icon: BarChart2 },
+      { to: '/anatomy', label: 'Anatomy', icon: Scan },
     ],
   },
   {
-    label: 'System',
+    label: 'Admin',
     items: [
-      { to: '/upload',   label: 'Upload Studies', icon: Upload },
-      { to: '/settings', label: 'Settings',       icon: Settings },
+      { to: '/integrations', label: 'Integrations', icon: Cpu },
+      { to: '/compliance', label: 'Compliance', icon: Shield },
+      { to: '/settings', label: 'Settings', icon: Settings },
     ],
   },
 ];
@@ -96,7 +92,7 @@ export function Sidebar() {
             Med-AI
           </p>
           <p className="text-xs truncate" style={{ color: 'var(--clr-text-3, #64748b)' }}>
-            {tenantName || 'Enterprise Hospital'}
+            Clinical Intelligence
           </p>
         </div>
       </div>
@@ -104,8 +100,8 @@ export function Sidebar() {
       {/* ── Navigation ── */}
       <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-5">
         {navGroups.map((group) => (
-          <div key={group.label}>
-            <p className="section-label mb-2">{group.label}</p>
+          <div key={group.label ?? 'primary'}>
+            {group.label && <p className="section-label mb-2">{group.label}</p>}
             <div className="space-y-0.5">
               {group.items.map((item) => (
                 <NavLink
@@ -169,7 +165,7 @@ export function Sidebar() {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-white truncate">{fullName || 'Clinical User'}</p>
             <p className="text-[10px] capitalize truncate" style={{ color: 'var(--clr-text-3, #64748b)' }}>
-              {role ? role.replace(/_/g, ' ').toLowerCase() : 'Practitioner'}
+              {tenantName ? `${tenantName} · ` : ''}{role ? role.replace(/_/g, ' ').toLowerCase() : 'Practitioner'}
             </p>
           </div>
           <button

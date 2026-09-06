@@ -1,5 +1,18 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  /** Optional path/URL override for the bundled licensed skeleton GLB. "none"/"off" forces fallback. */
+  readonly VITE_ANATOMY_SKELETON_MODEL_URL?: string;
+  /** Optional attribution override; the bundled model metadata supplies the verified default. */
+  readonly VITE_ANATOMY_SKELETON_MODEL_ATTRIBUTION?: string;
+  /** Optional license override; the bundled model metadata supplies the verified default. */
+  readonly VITE_ANATOMY_SKELETON_MODEL_LICENSE?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 declare module 'dicom-parser' {
   interface DicomElement {
     tag: string;

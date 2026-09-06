@@ -2,17 +2,23 @@ package com.medai.report.service;
 
 import com.medai.analysis.entity.AnalysisRequest;
 import com.medai.analysis.enums.AnalysisStatus;
+import com.medai.analysis.enums.AnalysisType;
 import com.medai.analysis.repository.AnalysisRequestRepository;
 import com.medai.auth.security.UserPrincipal;
 import com.medai.common.dto.PagedResponse;
 import com.medai.common.exception.BadRequestException;
 import com.medai.common.exception.ResourceNotFoundException;
+import com.medai.finding.extraction.ReportSectionParser;
 import com.medai.patient.entity.Patient;
 import com.medai.patient.repository.PatientRepository;
 import com.medai.report.dto.ReportDtos.*;
 import com.medai.report.entity.ReportReview;
 import com.medai.report.repository.ReportReviewRepository;
 import com.medai.tenant.TenantContext;
+import com.medai.upload.entity.MedicalFile;
+import com.medai.upload.enums.FileType;
+import com.medai.upload.enums.UploadStatus;
+import com.medai.upload.repository.MedicalFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -51,6 +58,8 @@ public class ReportSignOffService {
     private final ReportReviewRepository reviewRepository;
     private final AnalysisRequestRepository analysisRepository;
     private final PatientRepository patientRepository;
+    private final MedicalFileRepository medicalFileRepository;
+    private final ReportSectionParser sectionParser;
 
     /**
      * Opens a review for a completed analysis, freezing what the model produced.
@@ -87,6 +96,88 @@ public class ReportSignOffService {
 
         log.info("Review {} opened for analysis {}", review.getId(), analysisId);
         return Optional.of(review);
+    }
+
+    /**
+     * Creates the same review object used by generated reports, but from report text a clinician
+     * pastes into the ingestion screen. No QA runs here; the workspace decides when to evaluate.
+     */
+    @Transactional
+    public ReviewView createTextDraft(CreateTextDraftRequest request, UserPrincipal principal) {
+        if (request == null) {
+            throw new BadRequestException("A pasted report request is required.");
+        }
+        if (request.patientId() == null) {
+            throw new BadRequestException("Select a patient before saving a pasted report.");
+        }
+        if (request.reportText() == null || request.reportText().isBlank()) {
+            throw new BadRequestException("Report text is required.");
+        }
+
+        UUID tenantId = TenantContext.requireTenantId();
+        if (principal == null || !tenantId.equals(principal.tenantId())) {
+            throw new BadRequestException("Authenticated tenant context is required.");
+        }
+
+        Patient patient = patientRepository.findByIdAndTenantId(request.patientId(), tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Patient", "id", request.patientId().toString()));
+
+        String reportText = request.reportText();
+        String studyDescription = hasText(request.studyDescription()) ? request.studyDescription() : null;
+        FileType modality = request.modality() == null ? FileType.OTHER : request.modality();
+        UUID sourceId = UUID.randomUUID();
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("ingestMode", "PASTED_REPORT_TEXT");
+
+        MedicalFile source = MedicalFile.builder()
+                .patientId(patient.getId())
+                .uploadedBy(principal.userId())
+                .fileName("pasted-report-" + sourceId + ".txt")
+                .originalFileName("Pasted report text")
+                .fileType(modality)
+                .mimeType("text/plain")
+                .fileSizeBytes((long) reportText.getBytes(StandardCharsets.UTF_8).length)
+                .storagePath("inline-report-text://" + sourceId)
+                .description(studyDescription)
+                .uploadStatus(UploadStatus.COMPLETED)
+                .metadata(metadata)
+                .build();
+        source.setTenantId(tenantId);
+        source = medicalFileRepository.save(source);
+
+        Instant now = Instant.now();
+        AnalysisRequest analysis = AnalysisRequest.builder()
+                .patientId(patient.getId())
+                .medicalFileId(source.getId())
+                .requestedBy(principal.userId())
+                .analysisType(AnalysisType.IMAGE_ANALYSIS)
+                .clinicalNotes(studyDescription)
+                .status(AnalysisStatus.COMPLETED)
+                .urgency("ROUTINE")
+                .abstained(false)
+                .modalityUsed("TEXT")
+                .processingStartedAt(now)
+                .processingCompletedAt(now)
+                .retryCount(0)
+                .maxRetries(0)
+                .build();
+        analysis.setTenantId(tenantId);
+        analysis = analysisRepository.save(analysis);
+
+        ReportReview review = reviewRepository.save(ReportReview.builder()
+                .tenantId(tenantId)
+                .analysisId(analysis.getId())
+                .patientId(patient.getId())
+                .status("DRAFT")
+                .draftContent(reportText)
+                .build());
+
+        log.info("Text draft review {} created for patient {} (analysis {})",
+                review.getId(), patient.getId(), analysis.getId());
+
+        return toView(review, patient.getFullName(), analysis.getAnalysisType().name());
     }
 
     /**
@@ -333,10 +424,33 @@ public class ReportSignOffService {
                 .map(a -> a.getAnalysisType().name()).orElse(null);
     }
 
+    private boolean hasText(String text) {
+        return text != null && !text.isBlank();
+    }
+
     private ReviewView toView(ReportReview r, String patientName, String analysisType) {
         return new ReviewView(r.getId(), r.getAnalysisId(), r.getPatientId(), patientName, analysisType,
                 r.getStatus(), r.getClaimedBy(), r.getClaimedAt(), r.getSignedBy(), r.getSignedAt(),
                 r.getReviewAction(), r.getRejectionReason(), r.getDraftContent(), r.getFinalContent(),
-                r.getAmendsReviewId(), r.getCreatedAt());
+                sectionsOf(r), r.getAmendsReviewId(), r.getCreatedAt());
+    }
+
+    private List<ReportSectionView> sectionsOf(ReportReview review) {
+        return sectionParser.parse(sourceText(review)).stream()
+                .map(section -> new ReportSectionView(
+                        section.sourceSection().name(),
+                        section.text().strip()))
+                .filter(section -> hasText(section.text()))
+                .toList();
+    }
+
+    private String sourceText(ReportReview review) {
+        if ("SIGNED".equals(review.getStatus()) && hasText(review.getFinalContent())) {
+            return review.getFinalContent();
+        }
+        if (hasText(review.getDraftContent())) {
+            return review.getDraftContent();
+        }
+        return hasText(review.getFinalContent()) ? review.getFinalContent() : "";
     }
 }

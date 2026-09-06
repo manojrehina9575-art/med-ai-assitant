@@ -22,6 +22,8 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
 
     Page<Patient> findByTenantId(UUID tenantId, Pageable pageable);
 
+    Page<Patient> findByTenantIdAndIsActive(UUID tenantId, boolean isActive, Pageable pageable);
+
     Optional<Patient> findByTenantIdAndMedicalRecordNumber(UUID tenantId, String mrn);
 
     boolean existsByTenantIdAndMedicalRecordNumber(UUID tenantId, String mrn);
@@ -34,8 +36,18 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
                                    @Param("query") String query,
                                    Pageable pageable);
 
+    @Query("SELECT p FROM Patient p WHERE p.tenantId = :tenantId AND p.isActive = :isActive AND " +
+           "(LOWER(p.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(p.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(p.medicalRecordNumber) LIKE LOWER(CONCAT('%', :query, '%')))")
+    Page<Patient> searchByTenantIdAndIsActive(@Param("tenantId") UUID tenantId,
+                                             @Param("query") String query,
+                                             @Param("isActive") boolean isActive,
+                                             Pageable pageable);
+
     long countByTenantId(UUID tenantId);
 
     /** Batch lookup, so a list of N rows referencing patients costs one query instead of N. */
     List<Patient> findByTenantIdAndIdIn(UUID tenantId, Collection<UUID> ids);
 }
+

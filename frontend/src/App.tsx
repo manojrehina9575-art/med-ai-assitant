@@ -18,6 +18,10 @@ import { WorklistPage } from '@/pages/WorklistPage';
 import { CompliancePage } from '@/pages/CompliancePage';
 import { FineTuningPage } from '@/pages/FineTuningPage';
 import { ObservabilityPage } from '@/pages/ObservabilityPage';
+import { ClinicalWorkspacePage } from '@/pages/ClinicalWorkspacePage';
+import { AnatomyPage } from '@/pages/AnatomyPage';
+import { QaAnalyticsPage } from '@/pages/QaAnalyticsPage';
+import { IntegrationsPage } from '@/pages/IntegrationsPage';
 
 export default function App() {
   // Nothing about the session survives a reload in memory — by design, so no token is ever written
@@ -38,6 +42,11 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/patients" element={<PatientsPage />} />
         <Route path="/worklist" element={<WorklistPage />} />
+        <Route path="/clinical-workspace" element={<ClinicalWorkspacePage />} />
+        <Route path="/clinical-workspace/:reviewId" element={<ClinicalWorkspacePage />} />
+        <Route path="/qa-analytics" element={<QaAnalyticsPage />} />
+        <Route path="/anatomy" element={<AnatomyPage />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />

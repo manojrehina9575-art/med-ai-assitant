@@ -11,6 +11,7 @@ import com.medai.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -64,6 +65,17 @@ public class ReportController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(signOffService.forPatient(patientId, page, size)));
+    }
+
+    @PostMapping("/text-draft")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR', 'LAB_TECH')")
+    @Operation(summary = "Create a draft report review from pasted radiology report text")
+    public ResponseEntity<ApiResponse<ReviewView>> createTextDraft(
+            @RequestBody CreateTextDraftRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Draft report review created",
+                        signOffService.createTextDraft(request, principal)));
     }
 
     @GetMapping("/{reviewId}")

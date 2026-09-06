@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import {
   Users, FileImage, Brain, ArrowRight,
-  MessageSquare, Upload, BookOpen, CheckCircle2, Clock,
-  TrendingUp, BarChart2, Cpu, AlertTriangle, Download,
+  FileText, ClipboardCheck, CheckCircle2, Clock,
+  TrendingUp, BarChart2, Cpu, AlertTriangle, Download, Scan,
 } from 'lucide-react';
 import { analyticsService, type AnalyticsData, type DailyCount } from '@/services/analyticsService';
 import api from '@/services/api';
@@ -138,12 +138,12 @@ export function DashboardPage() {
   ];
 
   const quickActions = [
-    { to: '/patients',      icon: Users,         label: 'Manage Patients',   sub: 'View, add, or edit patient records',  color: '#3b82f6' },
-    { to: '/upload',        icon: Upload,        label: 'Upload Studies',    sub: 'X-rays, CTs, blood reports',         color: '#10b981' },
-    { to: '/chat',          icon: MessageSquare, label: 'Clinical AI Chat',  sub: 'AI-assisted decision support',       color: '#8b5cf6' },
-    { to: '/analysis',      icon: Brain,         label: 'AI Radiology',      sub: 'Multimodal image analysis',          color: '#06b6d4' },
-    { to: '/blood-reports', icon: FileImage,     label: 'Blood & Lab Tests', sub: 'Laboratory analytics',               color: '#f59e0b' },
-    { to: '/knowledge',     icon: BookOpen,      label: 'Hospital Protocols',sub: 'RAG knowledge base',                 color: '#ec4899' },
+    { to: '/worklist', icon: ClipboardCheck, label: 'Worklist', sub: 'Draft reports awaiting sign-off', color: '#3b82f6' },
+    { to: '/clinical-workspace', icon: FileText, label: 'Clinical Workspace', sub: 'Report QA review surface', color: '#06b6d4' },
+    { to: '/patients', icon: Users, label: 'Patients', sub: 'Registry and clinical context', color: '#10b981' },
+    { to: '/qa-analytics', icon: BarChart2, label: 'QA Analytics', sub: 'Operational quality signals', color: '#f59e0b' },
+    { to: '/anatomy', icon: Scan, label: 'Anatomy', sub: 'Finding-to-anatomy mapping', color: '#8b5cf6' },
+    { to: '/integrations', icon: Cpu, label: 'Integrations', sub: 'PACS/RIS/reporting connections', color: '#ec4899' },
   ];
 
   const statusItems = [
@@ -208,12 +208,12 @@ export function DashboardPage() {
               <Download className="h-4 w-4" /> Export CSV
             </button>
             <Link
-              to="/chat"
+              to="/clinical-workspace"
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all hover:shadow-lg"
               style={{ background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', boxShadow: '0 0 20px rgba(59,130,246,0.3)' }}
             >
-              <MessageSquare className="h-4 w-4" />
-              Start AI Consult
+              <FileText className="h-4 w-4" />
+              Open Clinical Workspace
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

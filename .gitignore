@@ -37,6 +37,9 @@ Thumbs.db
 # Uploads
 uploads/
 
+# Official BodyParts3D source archives/tables are large provenance inputs, not app assets.
+.anatomy-source-cache/
+
 # Logs
 *.log
 

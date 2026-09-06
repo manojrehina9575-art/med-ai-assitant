@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   reportService,
   parseDraft,
@@ -344,6 +345,12 @@ export function WorklistPage() {
                           Claim
                         </Button>
                       )}
+                      <Button asChild variant="secondary" size="sm">
+                        <Link to={`/clinical-workspace/${selected.id}`}>
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                          QA Workspace
+                        </Link>
+                      </Button>
                       <Button
                         size="sm"
                         disabled={busy}

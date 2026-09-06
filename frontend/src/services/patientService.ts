@@ -2,9 +2,10 @@ import api from './api';
 import type { ApiResponse, PagedResponse, Patient } from '@/types';
 
 export const patientService = {
-  async list(page = 0, size = 20, search?: string): Promise<PagedResponse<Patient>> {
+  async list(page = 0, size = 20, search?: string, active?: boolean): Promise<PagedResponse<Patient>> {
     const params: Record<string, unknown> = { page, size };
     if (search) params.search = search;
+    if (active !== undefined) params.active = active;
     const res = await api.get<ApiResponse<PagedResponse<Patient>>>('/patients', { params });
     return res.data.data;
   },
@@ -24,6 +25,10 @@ export const patientService = {
     phone?: string;
     email?: string;
     address?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    medicalHistory?: string[];
+    allergies?: string[];
   }): Promise<Patient> {
     const res = await api.post<ApiResponse<Patient>>('/patients', data);
     return res.data.data;
@@ -34,7 +39,10 @@ export const patientService = {
     return res.data.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await api.delete(`/patients/${id}`);
+  async delete(id: string, permanent = false): Promise<void> {
+    await api.delete(`/patients/${id}`, {
+      params: permanent ? { permanent: true } : undefined,
+    });
   },
 };
+

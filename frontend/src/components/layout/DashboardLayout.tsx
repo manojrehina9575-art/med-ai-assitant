@@ -1,16 +1,35 @@
-import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Navigate, Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Sidebar } from './Sidebar';
-import { Shield, Clock, Search, X } from 'lucide-react';
+import { Shield, Clock, Search, X, Brain, LogOut, Upload as UploadIcon, ClipboardCheck, Users, ChevronDown } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { NotificationCenter } from '@/components/notification/NotificationCenter';
 import { patientService } from '@/services/patientService';
+import { logout } from '@/services/api';
+import { cn } from '@/utils/cn';
 import type { Patient } from '@/types';
 
+/**
+ * Pages that need the full viewport width (dense multi-panel review layouts) hide the sidebar and
+ * get a compact top navbar (brand + primary nav links + user menu) in its place, so wayfinding
+ * isn't lost.
+ */
+const FULL_WIDTH_SEGMENTS = new Set(['clinical-workspace']);
+
+const topNavLinks = [
+  { to: '/upload', label: 'Upload', icon: UploadIcon },
+  { to: '/worklist', label: 'Worklist', icon: ClipboardCheck },
+  { to: '/patients', label: 'Patients', icon: Users },
+];
+
 const pageMeta: Record<string, { title: string; sub: string }> = {
-  dashboard:    { title: 'Dashboard',                  sub: 'Clinical overview & quick actions' },
+  dashboard:    { title: 'Dashboard',                  sub: 'Clinical intelligence overview & quick actions' },
   patients:     { title: 'Patient Registry',           sub: 'Medical records management' },
-  worklist:     { title: 'Reading Worklist',           sub: 'Draft reports awaiting clinician sign-off' },
+  worklist:     { title: 'Worklist',                   sub: 'Draft reports awaiting radiologist sign-off' },
+  'clinical-workspace': { title: 'Clinical Workspace', sub: 'Report QA, prior comparison, anatomy mapping & audit' },
+  'qa-analytics': { title: 'QA Analytics',             sub: 'Quality assurance metrics for imaging operations' },
+  anatomy:      { title: 'Anatomy',                    sub: 'Finding-to-anatomy visualization workspace' },
+  integrations: { title: 'Integrations',               sub: 'PACS, RIS, reporting, and identity connections' },
   upload:       { title: 'Upload Studies',             sub: 'Diagnostic file ingestion' },
   workflows:    { title: 'Clinical Agent & LangGraph4j Workflows', sub: 'Autonomous multi-step actions & HITL approval' },
   analysis:     { title: 'AI Radiology & PACS',        sub: 'Multimodal image analysis' },
@@ -34,10 +53,12 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function DashboardLayout() {
-  const { isAuthenticated, isBootstrapped } = useAuthStore();
+  const { isAuthenticated, isBootstrapped, fullName, role } = useAuthStore();
   const location   = useLocation();
   const navigate   = useNavigate();
   const searchRef  = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const [time, setTime] = useState(
     new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -95,6 +116,18 @@ export function DashboardLayout() {
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  // ── Close user menu on outside click ────────────────────
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [userMenuOpen]);
+
   // Wait for the refresh-cookie exchange before deciding. Without this a page reload bounces
   // a signed-in user to /login for the duration of the round trip.
   if (!isBootstrapped) return null;
@@ -102,10 +135,15 @@ export function DashboardLayout() {
 
   const segment = location.pathname.split('/').filter(Boolean)[0] || 'dashboard';
   const meta = pageMeta[segment] || { title: 'Med-AI', sub: 'Clinical Intelligence Platform' };
+  const isFullWidth = FULL_WIDTH_SEGMENTS.has(segment);
+
+  const initials = fullName
+    ? fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'DR';
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg, #0a0f1e)' }}>
-      <Sidebar />
+      {!isFullWidth && <Sidebar />}
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* ── Top Header ── */}
@@ -117,12 +155,24 @@ export function DashboardLayout() {
             backdropFilter: 'blur(12px)',
           }}
         >
-          {/* Left: Page title */}
+          {/* Left: Page title, or a compact brand mark when the sidebar is hidden */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="hidden sm:block">
-              <h2 className="text-sm font-bold text-white leading-none">{meta.title}</h2>
-              <p className="text-[11px] mt-0.5" style={{ color: 'var(--clr-text-3, #64748b)' }}>{meta.sub}</p>
-            </div>
+            {isFullWidth ? (
+              <Link to="/dashboard" className="flex items-center gap-2 shrink-0">
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-lg"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6, #06b6d4)' }}
+                >
+                  <Brain className="h-3.5 w-3.5 text-white" />
+                </div>
+                <span className="hidden text-sm font-bold text-white sm:inline">Med-AI</span>
+              </Link>
+            ) : (
+              <div className="hidden sm:block">
+                <h2 className="text-sm font-bold text-white leading-none">{meta.title}</h2>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--clr-text-3, #64748b)' }}>{meta.sub}</p>
+              </div>
+            )}
           </div>
 
           {/* Right: Search + Clock + Warning + Bell */}
@@ -225,34 +275,108 @@ export function DashboardLayout() {
               )}
             </div>
 
-            {/* Clock */}
-            <div
-              className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-mono"
-              style={{
-                background: 'var(--surface-2, #1a2235)',
-                border: '1px solid var(--clr-border, #1e2d45)',
-                color: 'var(--clr-text-2, #94a3b8)',
-              }}
-            >
-              <Clock className="h-3.5 w-3.5" style={{ color: '#3b82f6' }} />
-              <span>{time}</span>
-            </div>
+            {isFullWidth ? (
+              /* Primary nav, surfaced here since the sidebar (which normally carries it) is hidden */
+              <nav className="hidden items-center gap-1 md:flex">
+                {topNavLinks.map(({ to, label, icon: Icon }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                        isActive ? 'text-white' : 'text-slate-400 hover:text-white'
+                      )
+                    }
+                    style={({ isActive }) => (isActive ? { background: 'var(--surface-2, #1a2235)' } : undefined)}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </NavLink>
+                ))}
+              </nav>
+            ) : (
+              <>
+                {/* Clock */}
+                <div
+                  className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-mono"
+                  style={{
+                    background: 'var(--surface-2, #1a2235)',
+                    border: '1px solid var(--clr-border, #1e2d45)',
+                    color: 'var(--clr-text-2, #94a3b8)',
+                  }}
+                >
+                  <Clock className="h-3.5 w-3.5" style={{ color: '#3b82f6' }} />
+                  <span>{time}</span>
+                </div>
 
-            {/* Clinician disclaimer */}
-            <div
-              className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold"
-              style={{
-                background: 'rgba(245,158,11,0.08)',
-                border: '1px solid rgba(245,158,11,0.2)',
-                color: '#fbbf24',
-              }}
-            >
-              <Shield className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Clinician review required</span>
-            </div>
+                {/* Clinician disclaimer */}
+                <div
+                  className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold"
+                  style={{
+                    background: 'rgba(245,158,11,0.08)',
+                    border: '1px solid rgba(245,158,11,0.2)',
+                    color: '#fbbf24',
+                  }}
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                  <span className="hidden lg:inline">Clinician review required</span>
+                </div>
+              </>
+            )}
 
             {/* Notification Bell */}
             <NotificationCenter />
+
+            {/* User menu: normally lives in the sidebar footer, surfaced here when it's hidden */}
+            {isFullWidth && (
+              <div ref={userMenuRef} className="relative ml-1">
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((open) => !open)}
+                  className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-white/5"
+                >
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-blue-300"
+                    style={{ background: 'rgba(59,130,246,0.18)', border: '1.5px solid rgba(59,130,246,0.35)' }}
+                  >
+                    {initials}
+                  </div>
+                  <div className="hidden text-left leading-tight lg:block">
+                    <p className="text-xs font-semibold text-white">{fullName ?? 'Clinical User'}</p>
+                    <p className="text-[10px] capitalize text-slate-500">{role ? role.replace(/_/g, ' ').toLowerCase() : 'Practitioner'}</p>
+                  </div>
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                </button>
+
+                {userMenuOpen && (
+                  <div
+                    className="absolute right-0 top-[calc(100%+6px)] w-44 overflow-hidden rounded-xl border"
+                    style={{
+                      background: 'var(--surface-1, #111827)',
+                      borderColor: 'var(--clr-border, #1e2d45)',
+                      boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+                    }}
+                  >
+                    <Link
+                      to="/settings"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="block px-3 py-2.5 text-xs font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+                    >
+                      Settings
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => void logout()}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-red-400"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
 

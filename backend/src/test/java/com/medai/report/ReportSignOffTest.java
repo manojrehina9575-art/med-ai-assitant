@@ -7,12 +7,23 @@ import com.medai.analysis.enums.AnalysisType;
 import com.medai.analysis.repository.AnalysisRequestRepository;
 import com.medai.auth.security.UserPrincipal;
 import com.medai.common.exception.BadRequestException;
+import com.medai.common.exception.ResourceNotFoundException;
+import com.medai.finding.model.FindingSourceSection;
+import com.medai.qa.model.QaEvidence;
+import com.medai.qa.model.QaIssue;
+import com.medai.qa.model.QaIssueType;
+import com.medai.qa.model.QaResult;
+import com.medai.qa.model.QaSeverity;
+import com.medai.qa.service.QaService;
 import com.medai.report.dto.ReportDtos.*;
 import com.medai.report.entity.ReportReview;
 import com.medai.report.repository.ReportReviewRepository;
 import com.medai.report.service.CriticalResultService;
 import com.medai.report.service.ReportSignOffService;
 import com.medai.tenant.TenantContext;
+import com.medai.upload.enums.FileType;
+import com.medai.upload.enums.UploadStatus;
+import com.medai.upload.repository.MedicalFileRepository;
 import com.medai.user.enums.UserRole;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +50,8 @@ class ReportSignOffTest extends BaseIntegrationTest {
     @Autowired private CriticalResultService criticalResultService;
     @Autowired private ReportReviewRepository reviewRepository;
     @Autowired private AnalysisRequestRepository analysisRepository;
+    @Autowired private MedicalFileRepository medicalFileRepository;
+    @Autowired private QaService qaService;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @AfterEach
@@ -96,6 +109,13 @@ class ReportSignOffTest extends BaseIntegrationTest {
                 .build();
         analysis.setTenantId(tenantId);
         return analysisRepository.save(analysis);
+    }
+
+    private QaEvidence evidence(QaIssue issue, FindingSourceSection section) {
+        return issue.evidence().stream()
+                .filter(candidate -> candidate.sourceSection() == section)
+                .findFirst()
+                .orElseThrow();
     }
 
     @Nested
@@ -244,6 +264,133 @@ class ReportSignOffTest extends BaseIntegrationTest {
             assertThat(signOffService.worklist(0, 20).getContent())
                     .extracting(ReviewView::analysisId)
                     .containsExactly(older.getId());
+        }
+
+        @Test
+        @DisplayName("Pasted report text preserves sections and drives real QA/anatomy")
+        void pastedReportTextCreatesDraftReview() {
+            seedWorld();
+            String reportText = """
+                    FINDINGS:
+                    There is a comminuted fracture involving the proximal right humerus.
+
+                    COMPARISON:
+                    No prior study available.
+
+                    IMPRESSION:
+                    Comminuted fracture of the proximal left humerus.
+                    """;
+
+            ReviewView draft = signOffService.createTextDraft(
+                    new CreateTextDraftRequest(patientId, reportText, FileType.XRAY,
+                            "Right humerus radiographs"),
+                    doctor());
+
+            assertThat(draft.id()).isNotNull();
+            assertThat(draft.patientId()).isEqualTo(patientId);
+            assertThat(draft.patientName()).isEqualTo("Asha Menon");
+            assertThat(draft.analysisType()).isEqualTo(AnalysisType.IMAGE_ANALYSIS.name());
+            assertThat(draft.status()).isEqualTo("DRAFT");
+            assertThat(draft.draftContent()).isEqualTo(reportText);
+            assertThat(draft.finalContent()).isNull();
+            assertThat(draft.sections()).containsExactly(
+                    new ReportSectionView("FINDINGS",
+                            "There is a comminuted fracture involving the proximal right humerus."),
+                    new ReportSectionView("COMPARISON", "No prior study available."),
+                    new ReportSectionView("IMPRESSION",
+                            "Comminuted fracture of the proximal left humerus."));
+
+            ReportReview persisted = reviewRepository.findByIdAndTenantId(draft.id(), tenantId).orElseThrow();
+            assertThat(persisted.getDraftContent()).isEqualTo(reportText);
+
+            AnalysisRequest analysis = analysisRepository.findByIdAndTenantId(draft.analysisId(), tenantId)
+                    .orElseThrow();
+            assertThat(analysis.getPatientId()).isEqualTo(patientId);
+            assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
+            assertThat(analysis.getAnalysisType()).isEqualTo(AnalysisType.IMAGE_ANALYSIS);
+            assertThat(analysis.getModalityUsed()).isEqualTo("TEXT");
+            assertThat(analysis.getClinicalNotes()).isEqualTo("Right humerus radiographs");
+            assertThat(analysis.getResult()).as("QA reads ReportReview.draftContent for pasted text").isNull();
+
+            var source = medicalFileRepository
+                    .findByIdAndPatientIdAndTenantId(analysis.getMedicalFileId(), patientId, tenantId)
+                    .orElseThrow();
+            assertThat(source.getFileType()).isEqualTo(FileType.XRAY);
+            assertThat(source.getUploadStatus()).isEqualTo(UploadStatus.COMPLETED);
+            assertThat(source.getMetadata()).containsEntry("ingestMode", "PASTED_REPORT_TEXT");
+
+            assertThat(signOffService.worklist(0, 20).getContent())
+                    .extracting(ReviewView::id)
+                    .contains(draft.id());
+
+            QaResult qa = qaService.evaluateReport(draft.id());
+
+            assertThat(qa.status().name()).isEqualTo("REVIEW_RECOMMENDED");
+            assertThat(qa.issues()).hasSize(1);
+            QaIssue issue = qa.issues().getFirst();
+            assertThat(issue.type()).isEqualTo(QaIssueType.LATERALITY_CONFLICT);
+            assertThat(issue.severity()).isEqualTo(QaSeverity.HIGH);
+            assertThat(issue.findingText())
+                    .isEqualTo("There is a comminuted fracture involving the proximal right humerus.");
+            assertThat(issue.impressionText()).isEqualTo("Comminuted fracture of the proximal left humerus.");
+            assertThat(issue.anatomyCode()).isEqualTo("HUMERUS");
+            assertThat(issue.region()).isEqualTo("PROXIMAL");
+
+            QaEvidence findingsEvidence = evidence(issue, FindingSourceSection.FINDINGS);
+            assertThat(findingsEvidence.sourceText())
+                    .isEqualTo("There is a comminuted fracture involving the proximal right humerus.");
+            assertThat(findingsEvidence.side().name()).isEqualTo("RIGHT");
+            assertThat(findingsEvidence.anatomy().name()).isEqualTo("HUMERUS");
+            assertThat(findingsEvidence.anatomyTarget()).isNotNull();
+            assertThat(findingsEvidence.anatomyTarget().structureCode().name()).isEqualTo("HUMERUS");
+            assertThat(findingsEvidence.anatomyTarget().side().name()).isEqualTo("RIGHT");
+            assertThat(findingsEvidence.anatomyTarget().viewerKey()).isEqualTo("skeleton.humerus.right");
+
+            QaEvidence impressionEvidence = evidence(issue, FindingSourceSection.IMPRESSION);
+            assertThat(impressionEvidence.sourceText()).isEqualTo("Comminuted fracture of the proximal left humerus.");
+            assertThat(impressionEvidence.side().name()).isEqualTo("LEFT");
+            assertThat(impressionEvidence.anatomy().name()).isEqualTo("HUMERUS");
+            assertThat(impressionEvidence.anatomyTarget()).isNotNull();
+            assertThat(impressionEvidence.anatomyTarget().structureCode().name()).isEqualTo("HUMERUS");
+            assertThat(impressionEvidence.anatomyTarget().side().name()).isEqualTo("LEFT");
+            assertThat(impressionEvidence.anatomyTarget().viewerKey()).isEqualTo("skeleton.humerus.left");
+        }
+
+        @Test
+        @DisplayName("A pasted report cannot be saved without text")
+        void pastedReportTextNeedsContent() {
+            seedWorld();
+
+            assertThatThrownBy(() -> signOffService.createTextDraft(
+                    new CreateTextDraftRequest(patientId, "   ", FileType.XRAY, null), doctor()))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("Report text");
+        }
+
+        @Test
+        @DisplayName("Pasted report creation refuses patients outside the authenticated tenant")
+        void pastedReportTextIsTenantScoped() {
+            seedWorld();
+            UUID firstTenantPatient = patientId;
+
+            UUID otherTenant = UUID.randomUUID();
+            jdbcTemplate.update("""
+                    INSERT INTO tenants (id, name, subdomain, contact_email)
+                    VALUES (?, 'Other', ?, 'o@example.test')
+                    """, otherTenant, "other-" + otherTenant.toString().substring(0, 8));
+            UUID otherDoctor = UUID.randomUUID();
+            jdbcTemplate.update("""
+                    INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role)
+                    VALUES (?, ?, ?, 'x', 'Nina', 'Rao', 'DOCTOR')
+                    """, otherDoctor, otherTenant, "doc-" + otherDoctor + "@signoff.test");
+            TenantContext.setCurrentTenantId(otherTenant);
+
+            assertThatThrownBy(() -> signOffService.createTextDraft(
+                    new CreateTextDraftRequest(firstTenantPatient, "FINDINGS: Clear lungs.",
+                            FileType.XRAY, null),
+                    new UserPrincipal(otherDoctor, otherTenant, "doc@other.test", UserRole.DOCTOR.name())))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Patient");
         }
     }
 

@@ -1,5 +1,5 @@
 import api from './api';
-import type { ApiResponse, PagedResponse } from '@/types';
+import type { ApiResponse, PagedResponse, FileType } from '@/types';
 
 export type ReviewStatus = 'DRAFT' | 'IN_REVIEW' | 'SIGNED' | 'REJECTED' | 'AMENDED';
 export type ReviewAction = 'ACCEPTED' | 'EDITED' | 'REJECTED';
@@ -21,8 +21,15 @@ export interface ReportReview {
   draftContent: string | null;
   /** What the clinician signed. Narrative text, not JSON. */
   finalContent: string | null;
+  /** Backend-parsed sections from the canonical ReportSectionParser. */
+  sections?: ReportReviewSection[];
   amendsReviewId: string | null;
   createdAt: string;
+}
+
+export interface ReportReviewSection {
+  section: 'FINDINGS' | 'COMPARISON' | 'IMPRESSION' | 'UNKNOWN';
+  text: string;
 }
 
 export interface WorklistSummary {
@@ -49,6 +56,13 @@ export interface CriticalEscalation {
   acknowledgedAt: string | null;
   actionTaken: string | null;
   createdAt: string;
+}
+
+export interface CreateTextDraftRequest {
+  patientId: string;
+  reportText: string;
+  modality?: FileType;
+  studyDescription?: string;
 }
 
 /** The shape the analysis services write into draftContent. */
@@ -154,6 +168,11 @@ export const reportService = {
       `/reports/patient/${patientId}`,
       { params: { page, size } }
     );
+    return res.data.data;
+  },
+
+  async createTextDraft(request: CreateTextDraftRequest): Promise<ReportReview> {
+    const res = await api.post<ApiResponse<ReportReview>>('/reports/text-draft', request);
     return res.data.data;
   },
 

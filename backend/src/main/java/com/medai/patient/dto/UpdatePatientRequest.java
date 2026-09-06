@@ -9,6 +9,7 @@ import java.util.List;
 @Data
 public class UpdatePatientRequest {
 
+    private String medicalRecordNumber;
     private String firstName;
     private String lastName;
     private LocalDate dateOfBirth;
@@ -21,4 +22,6 @@ public class UpdatePatientRequest {
     private String emergencyContactPhone;
     private List<String> medicalHistory;
     private List<String> allergies;
+    private Boolean isActive;
 }
+

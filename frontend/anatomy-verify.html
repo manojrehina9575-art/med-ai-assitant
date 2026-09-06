@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Anatomy asset verification</title>
+    <style>
+      body { margin: 0; background: #0f172a; color: #cbd5e1; font: 13px system-ui; }
+      #hud { position: fixed; top: 8px; left: 8px; z-index: 2; background: rgba(2,6,23,.85);
+             padding: 8px 10px; border-radius: 8px; max-width: 46ch; line-height: 1.5; }
+      #view { position: fixed; inset: 0; }
+      b { color: #93c5fd; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">loading…</div>
+    <div id="view"></div>
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+      const params = new URLSearchParams(location.search);
+      const wanted = (params.get('mesh') || 'Humerus_R').split(',');
+      const url = '/models/anatomy/bodyparts3d-skeleton-v1.glb';
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(devicePixelRatio);
+      document.getElementById('view').appendChild(renderer.domElement);
+
+      // The pane can be laid out after this script runs, so size from the live document.
+      function fit() {
+        const w = Math.max(document.documentElement.clientWidth, 320);
+        const h = Math.max(document.documentElement.clientHeight, 240);
+        renderer.setSize(w, h, false);
+        renderer.domElement.style.width = '100%';
+        renderer.domElement.style.height = '100%';
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+      addEventListener('resize', fit);
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.05, 50);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+      const key = new THREE.DirectionalLight(0xffffff, 1.1); key.position.set(2.5, 3, 4); scene.add(key);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.4); fill.position.set(-3, 1.5, -2); scene.add(fill);
+
+      new GLTFLoader().load(url, (gltf) => {
+        const root = gltf.scene;
+        scene.add(root);
+
+        const names = [];
+        root.traverse((o) => { if (o.isMesh) { names.push(o.name); o.material = o.material.clone(); } });
+
+        const norm = (s) => s.toLowerCase().replace(/[\s_\-.]/g, '');
+        const selected = new Set(wanted.map(norm));
+        const box = new THREE.Box3();
+        let hits = 0;
+
+        root.traverse((o) => {
+          if (!o.isMesh) return;
+          const on = selected.has(norm(o.name));
+          o.material.color.set(on ? 0x60a5fa : 0xd8dee9);
+          o.material.emissive.set(on ? 0x60a5fa : 0x000000);
+          o.material.emissiveIntensity = on ? 0.35 : 0;
+          o.material.transparent = !on;
+          o.material.opacity = on ? 1 : 0.34;
+          if (on) { box.expandByObject(o); hits++; }
+        });
+
+        const centre = box.getCenter(new THREE.Vector3());
+        const radius = box.getSize(new THREE.Vector3()).length() / 2;
+        const sideSign = wanted[0].endsWith('_R') ? -1 : 1;
+        const distance = (Math.max(radius, 0.08) / Math.sin((42 * Math.PI) / 360)) * 1.45;
+        camera.position.copy(centre).add(new THREE.Vector3(sideSign * 0.55, 0.18, 1).normalize().multiplyScalar(distance));
+        camera.lookAt(centre);
+
+        const full = new THREE.Box3().setFromObject(root);
+        document.getElementById('hud').innerHTML =
+          `<b>${url}</b><br>meshes: ${names.length}<br>` +
+          `highlighted: <b>${wanted.join(', ')}</b> (${hits} mesh${hits === 1 ? '' : 'es'})<br>` +
+          `centroid x: <b>${centre.x.toFixed(3)}</b> (negative = anatomical right)<br>` +
+          `model bbox y: ${full.min.y.toFixed(2)} … ${full.max.y.toFixed(2)}<br>` +
+          `names: ${names.join(', ')}`;
+        fit();
+        renderer.setAnimationLoop(() => renderer.render(scene, camera));
+        window.__verify = { names, hits, centroidX: centre.x, height: full.max.y - full.min.y };
+      }, undefined, (error) => {
+        document.getElementById('hud').textContent = 'FAILED to load ' + url + ': ' + error;
+      });
+    </script>
+  </body>
+</html>

@@ -1,26 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { Link, useNavigate } from 'react-router-dom';
 import { patientService } from '@/services/patientService';
 import { fileService } from '@/services/fileService';
+import { reportService } from '@/services/reportService';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import {
   Upload, FileImage, Loader2, CheckCircle2, XCircle,
-  X, FileText, Microscope, Scan, Stethoscope, FileWarning, Files,
+  X, FileText, Scan, Stethoscope, Files,
 } from 'lucide-react';
 import type { Patient, FileType, MedicalFile } from '@/types';
 import api from '@/services/api';
 
-const FILE_TYPES: { value: FileType; label: string; icon: React.ElementType; color: string }[] = [
+type UploadMode = 'single' | 'batch' | 'text';
+
+const RADIOLOGY_FILE_TYPES: { value: FileType; label: string; icon: React.ElementType; color: string }[] = [
   { value: 'XRAY',             label: 'X-Ray',             icon: Scan,         color: '#06b6d4' },
   { value: 'CT_SCAN',          label: 'CT Scan',           icon: Scan,         color: '#8b5cf6' },
   { value: 'MRI',              label: 'MRI',               icon: Scan,         color: '#ec4899' },
   { value: 'ULTRASOUND',       label: 'Ultrasound',        icon: Stethoscope,  color: '#3b82f6' },
-  { value: 'BLOOD_REPORT',     label: 'Blood Report',      icon: Microscope,   color: '#ef4444' },
-  { value: 'LAB_REPORT',       label: 'Lab Report',        icon: FileText,     color: '#f59e0b' },
-  { value: 'PRESCRIPTION',     label: 'Prescription',      icon: FileText,     color: '#10b981' },
-  { value: 'DISCHARGE_SUMMARY',label: 'Discharge Summary', icon: FileWarning,  color: '#f97316' },
-  { value: 'OTHER',            label: 'Other',             icon: FileImage,    color: '#64748b' },
+  { value: 'OTHER',            label: 'Other Imaging',     icon: FileImage,    color: '#64748b' },
 ];
 
 const statusBadge: Record<string, string> = {
@@ -43,7 +43,8 @@ const selectStyle: React.CSSProperties = {
 };
 
 export function UploadPage() {
-  const [mode, setMode] = useState<'single' | 'batch'>('single');
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<UploadMode>('single');
   const [patients, setPatients]     = useState<Patient[]>([]);
   const [selectedPatient, setSP]    = useState('');
   const [fileType, setFileType]     = useState<FileType>('XRAY');
@@ -56,6 +57,9 @@ export function UploadPage() {
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [batchResults, setBatchResults] = useState<{ filename: string; success: boolean; fileId?: string; error?: string }[]>([]);
   const [batchUploading, setBatchUploading] = useState(false);
+  const [reportText, setReportText] = useState('');
+  const [textDraftError, setTextDraftError] = useState<string | null>(null);
+  const [savingTextDraft, setSavingTextDraft] = useState(false);
 
   useEffect(() => {
     patientService.list(0, 100).then((r) => setPatients(r.content)).catch(() => {});
@@ -142,30 +146,64 @@ export function UploadPage() {
     } finally { setUploading(false); }
   };
 
+  const handleTextDraft = async () => {
+    if (!selectedPatient) {
+      setTextDraftError('Select a patient before saving.');
+      return;
+    }
+    if (!reportText.trim()) {
+      setTextDraftError('Paste report text before saving.');
+      return;
+    }
+
+    setSavingTextDraft(true);
+    setTextDraftError(null);
+    try {
+      const review = await reportService.createTextDraft({
+        patientId: selectedPatient,
+        reportText,
+        modality: fileType,
+        studyDescription: description || undefined,
+      });
+      navigate(`/clinical-workspace/${review.id}`);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      setTextDraftError(e.response?.data?.message || 'Could not save pasted report.');
+    } finally {
+      setSavingTextDraft(false);
+    }
+  };
+
+  const cancelTextDraft = () => {
+    setReportText('');
+    setTextDraftError(null);
+    setMode('single');
+  };
+
   const fmt = (b: number) => {
     if (b < 1024) return b + ' B';
     if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
     return (b / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const selectedFT = FILE_TYPES.find((f) => f.value === fileType);
+  const selectedFT = RADIOLOGY_FILE_TYPES.find((f) => f.value === fileType);
 
   return (
     <div className="space-y-6 max-w-[1100px]">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans' }}>Upload Studies</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--clr-text-3)' }}>Upload medical files for AI-assisted analysis</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--clr-text-3)' }}>Ingest radiology studies and report drafts for clinical review</p>
         </div>
 
         {/* Mode Switcher */}
         <div
-          className="flex p-1 rounded-xl"
+          className="flex flex-wrap p-1 rounded-xl"
           style={{ background: 'var(--surface-2, #1a2235)', border: '1px solid var(--clr-border, #1e2d45)' }}
         >
           <button
             type="button"
-            onClick={() => setMode('single')}
+            onClick={() => { setMode('single'); setTextDraftError(null); }}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === 'single' ? 'text-white' : 'text-slate-400 hover:text-white'
             }`}
@@ -179,7 +217,7 @@ export function UploadPage() {
           </button>
           <button
             type="button"
-            onClick={() => setMode('batch')}
+            onClick={() => { setMode('batch'); setTextDraftError(null); }}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === 'batch' ? 'text-white' : 'text-slate-400 hover:text-white'
             }`}
@@ -191,6 +229,20 @@ export function UploadPage() {
             <Files className="h-3.5 w-3.5" />
             Batch Studies
           </button>
+          <button
+            type="button"
+            onClick={() => { setMode('text'); setResult(null); }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              mode === 'text' ? 'text-white' : 'text-slate-400 hover:text-white'
+            }`}
+            style={{
+              background: mode === 'text' ? 'linear-gradient(135deg, #3b82f6, #06b6d4)' : 'transparent',
+              boxShadow: mode === 'text' ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
+            }}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Paste Report Text
+          </button>
         </div>
       </div>
 
@@ -200,7 +252,11 @@ export function UploadPage() {
           style={{ background: 'var(--surface, #111827)', border: '1px solid var(--clr-border, #1e2d45)' }}>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans' }}>
-              {mode === 'single' ? 'Single Study Upload' : 'Batch Studies Ingestion'}
+              {mode === 'single'
+                ? 'Single Study Upload'
+                : mode === 'batch'
+                  ? 'Batch Studies Ingestion'
+                  : 'Paste Report Text'}
             </h3>
             {mode === 'batch' && batchFiles.length > 0 && (
               <span className="badge badge-blue text-[11px]">{batchFiles.length} file{batchFiles.length > 1 ? 's' : ''} queued</span>
@@ -209,20 +265,32 @@ export function UploadPage() {
 
           {/* Patient select */}
           <div>
-            <Label>Select Patient</Label>
-            <select style={selectStyle} value={selectedPatient} onChange={(e) => setSP(e.target.value)} required>
+            <Label htmlFor="upload-patient-select">Select Patient</Label>
+            <select
+              id="upload-patient-select"
+              aria-label="Select Patient"
+              style={selectStyle}
+              value={selectedPatient}
+              onChange={(e) => setSP(e.target.value)}
+              required
+            >
               <option value="">Choose patient…</option>
               {patients.map((p) => (
                 <option key={p.id} value={p.id}>{p.fullName} — {p.medicalRecordNumber}</option>
               ))}
             </select>
+            {patients.length === 0 && (
+              <p className="text-xs mt-2" style={{ color: 'var(--clr-text-3)' }}>
+                No patients available. <Link className="text-blue-300 hover:text-blue-200" to="/patients">Create a patient first.</Link>
+              </p>
+            )}
           </div>
 
           {/* File type chips */}
           <div>
-            <Label>File Type</Label>
+            <Label>{mode === 'text' ? 'Modality' : 'Study Type'}</Label>
             <div className="grid grid-cols-3 gap-2 mt-1">
-              {FILE_TYPES.map(({ value, label, icon: Icon, color }) => (
+              {RADIOLOGY_FILE_TYPES.map(({ value, label, icon: Icon, color }) => (
                 <button
                   key={value}
                   type="button"
@@ -243,7 +311,10 @@ export function UploadPage() {
 
           {/* Description */}
           <div>
-            <Label>Clinical Notes <span className="opacity-50 font-normal">(optional)</span></Label>
+            <Label>
+              {mode === 'text' ? 'Study Description' : 'Clinical Notes'}{' '}
+              <span className="opacity-50 font-normal">(optional)</span>
+            </Label>
             <textarea
               className="w-full rounded-lg px-3 py-2 text-sm resize-none outline-none transition-all"
               style={{
@@ -252,7 +323,9 @@ export function UploadPage() {
                 color: 'var(--clr-text, #f1f5f9)',
                 minHeight: 64,
               }}
-              placeholder="Clinical notes, modality specifications, or relevant patient context…"
+              placeholder={mode === 'text'
+                ? 'Study description, modality details, or accession notes…'
+                : 'Clinical notes, modality specifications, or relevant patient context…'}
               value={description}
               onChange={(e) => setDesc(e.target.value)}
               onFocus={(e) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.15)'; }}
@@ -260,7 +333,7 @@ export function UploadPage() {
             />
           </div>
 
-          {/* Drop zone: Single vs Batch */}
+          {/* Ingestion body */}
           {mode === 'single' ? (
             <div
               {...getRootProps()}
@@ -270,7 +343,7 @@ export function UploadPage() {
                 border: `2px dashed ${isDragActive ? '#3b82f6' : selectedFile ? '#10b981' : 'var(--clr-border-2, #243250)'}`,
               }}
             >
-              <input {...getInputProps()} />
+              <input {...getInputProps({ 'aria-label': 'Single study file' })} />
               {selectedFile ? (
                 <>
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl mb-3"
@@ -303,7 +376,7 @@ export function UploadPage() {
                 </>
               )}
             </div>
-          ) : (
+          ) : mode === 'batch' ? (
             /* Batch dropzone */
             <div className="space-y-3">
               <div
@@ -314,7 +387,7 @@ export function UploadPage() {
                   border: `2px dashed ${isBatchDragActive ? '#3b82f6' : 'var(--clr-border-2, #243250)'}`,
                 }}
               >
-                <input {...getBatchInputProps()} />
+                <input {...getBatchInputProps({ 'aria-label': 'Batch study files' })} />
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl mb-2"
                   style={{ background: 'rgba(59,130,246,0.1)' }}>
                   <Files className="h-5 w-5" style={{ color: '#3b82f6' }} />
@@ -374,6 +447,62 @@ export function UploadPage() {
                 </div>
               )}
             </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="pasted-report-text">Report Text</Label>
+                <textarea
+                  id="pasted-report-text"
+                  aria-label="Report Text"
+                  className="w-full rounded-lg px-3 py-3 text-sm outline-none transition-all"
+                  style={{
+                    background: 'var(--surface-2, #1a2235)',
+                    border: '1px solid var(--clr-border, #1e2d45)',
+                    color: 'var(--clr-text, #f1f5f9)',
+                    minHeight: 240,
+                  }}
+                  placeholder="Paste findings and impression text here…"
+                  value={reportText}
+                  onChange={(e) => { setReportText(e.target.value); setTextDraftError(null); }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.15)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--clr-border, #1e2d45)'; e.currentTarget.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              {textDraftError && (
+                <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                  style={{
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    color: '#fca5a5',
+                  }}>
+                  <XCircle className="h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
+                  {textDraftError}
+                </div>
+              )}
+
+              <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="secondary"
+                  onClick={cancelTextDraft}
+                  disabled={savingTextDraft}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={handleTextDraft}
+                  disabled={!selectedPatient || !reportText.trim() || savingTextDraft}
+                >
+                  {savingTextDraft
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving Draft…</>
+                    : <><FileText className="h-4 w-4" /> Save Draft & Open Workspace</>}
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Result feedback for single mode */}
@@ -403,7 +532,7 @@ export function UploadPage() {
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
                 : <><Upload className="h-4 w-4" /> Upload File</>}
             </Button>
-          ) : (
+          ) : mode === 'batch' ? (
             <Button
               size="lg"
               className="w-full"
@@ -414,7 +543,7 @@ export function UploadPage() {
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing Batch ({batchFiles.length} files)…</>
                 : <><Files className="h-4 w-4" /> Upload Batch ({batchFiles.length} files)</>}
             </Button>
-          )}
+          ) : null}
         </div>
 
         {/* ── Recent uploads — 2 cols ── */}
@@ -443,7 +572,7 @@ export function UploadPage() {
           ) : (
             <div className="space-y-2">
               {recentFiles.map((f) => {
-                const ft = FILE_TYPES.find((t) => t.value === f.fileType);
+                const ft = RADIOLOGY_FILE_TYPES.find((t) => t.value === f.fileType);
                 return (
                   <div key={f.id} className="flex items-start gap-3 rounded-xl p-3 transition-colors"
                     style={{ background: 'var(--surface-2, #1a2235)', border: '1px solid var(--clr-border, #1e2d45)' }}>

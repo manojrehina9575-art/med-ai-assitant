@@ -40,12 +40,13 @@ public class PatientController {
     public ResponseEntity<ApiResponse<PagedResponse<PatientResponse>>> listPatients(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(ApiResponse.success(patientService.listPatients(page, size, search)));
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean active) {
+        return ResponseEntity.ok(ApiResponse.success(patientService.listPatients(page, size, search, active)));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR')")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR', 'LAB_TECH')")
     public ResponseEntity<ApiResponse<PatientResponse>> updatePatient(
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePatientRequest request) {
@@ -53,9 +54,12 @@ public class PatientController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('HOSPITAL_ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deletePatient(@PathVariable UUID id) {
-        patientService.deletePatient(id);
-        return ResponseEntity.ok(ApiResponse.success("Patient deactivated", null));
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'DOCTOR')")
+    public ResponseEntity<ApiResponse<Void>> deletePatient(
+            @PathVariable UUID id,
+            @RequestParam(required = false, defaultValue = "false") boolean permanent) {
+        patientService.deletePatient(id, permanent);
+        return ResponseEntity.ok(ApiResponse.success(permanent ? "Patient deleted permanently" : "Patient deactivated", null));
     }
 }
+

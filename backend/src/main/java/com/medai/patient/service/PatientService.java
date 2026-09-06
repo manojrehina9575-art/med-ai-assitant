@@ -63,14 +63,29 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public PagedResponse<PatientResponse> listPatients(int page, int size, String search) {
+        return listPatients(page, size, search, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<PatientResponse> listPatients(int page, int size, String search, Boolean active) {
         UUID tenantId = TenantContext.requireTenantId();
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         Page<Patient> patients;
-        if (search != null && !search.isBlank()) {
-            patients = patientRepository.searchByTenantId(tenantId, search.trim(), pageRequest);
+        boolean hasSearch = search != null && !search.isBlank();
+
+        if (active != null) {
+            if (hasSearch) {
+                patients = patientRepository.searchByTenantIdAndIsActive(tenantId, search.trim(), active, pageRequest);
+            } else {
+                patients = patientRepository.findByTenantIdAndIsActive(tenantId, active, pageRequest);
+            }
         } else {
-            patients = patientRepository.findByTenantId(tenantId, pageRequest);
+            if (hasSearch) {
+                patients = patientRepository.searchByTenantId(tenantId, search.trim(), pageRequest);
+            } else {
+                patients = patientRepository.findByTenantId(tenantId, pageRequest);
+            }
         }
 
         return PagedResponse.<PatientResponse>builder()
@@ -89,6 +104,14 @@ public class PatientService {
         Patient patient = patientRepository.findByIdAndTenantId(patientId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient", "id", patientId));
 
+        if (request.getMedicalRecordNumber() != null && !request.getMedicalRecordNumber().isBlank()
+                && !request.getMedicalRecordNumber().equals(patient.getMedicalRecordNumber())) {
+            if (patientRepository.existsByTenantIdAndMedicalRecordNumber(tenantId, request.getMedicalRecordNumber())) {
+                throw new BadRequestException("Patient with MRN already exists: " + request.getMedicalRecordNumber());
+            }
+            patient.setMedicalRecordNumber(request.getMedicalRecordNumber().trim());
+        }
+
         if (request.getFirstName() != null) patient.setFirstName(request.getFirstName());
         if (request.getLastName() != null) patient.setLastName(request.getLastName());
         if (request.getDateOfBirth() != null) patient.setDateOfBirth(request.getDateOfBirth());
@@ -101,6 +124,7 @@ public class PatientService {
         if (request.getEmergencyContactPhone() != null) patient.setEmergencyContactPhone(request.getEmergencyContactPhone());
         if (request.getMedicalHistory() != null) patient.setMedicalHistory(request.getMedicalHistory());
         if (request.getAllergies() != null) patient.setAllergies(request.getAllergies());
+        if (request.getIsActive() != null) patient.setIsActive(request.getIsActive());
 
         patient = patientRepository.save(patient);
         return toResponse(patient);
@@ -108,11 +132,21 @@ public class PatientService {
 
     @Transactional
     public void deletePatient(UUID patientId) {
+        deletePatient(patientId, false);
+    }
+
+    @Transactional
+    public void deletePatient(UUID patientId, boolean permanent) {
         UUID tenantId = TenantContext.requireTenantId();
         Patient patient = patientRepository.findByIdAndTenantId(patientId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient", "id", patientId));
-        patient.setIsActive(false);
-        patientRepository.save(patient);
+
+        if (permanent) {
+            patientRepository.delete(patient);
+        } else {
+            patient.setIsActive(false);
+            patientRepository.save(patient);
+        }
     }
 
     private PatientResponse toResponse(Patient p) {
@@ -139,3 +173,4 @@ public class PatientService {
                 .build();
     }
 }
+
